@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  crypto-bot:
+    build: .
+    container_name: crypto_bot_trading
+    ports:
+      - '3333:3333'
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./var:/usr/src/app/var
+    restart: unless-stopped
+    networks:
+      - crypto_network
+
+networks:
+  crypto_network:
+    driver: bridge
