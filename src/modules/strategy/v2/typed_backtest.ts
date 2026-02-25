@@ -12,6 +12,8 @@ import type { TechnicalAnalysisValidator } from '../../../utils/technical_analys
 import type { CcxtCandleWatchService } from '../../system/ccxt_candle_watch_service';
 import type { CcxtCandlePrefillService } from '../../system/ccxt_candle_prefill_service';
 import type { StrategyRegistry } from './strategy_registry';
+import type { AiService } from '../../../ai/ai_service';
+import type { AiAnalysisInput } from '../../../ai/types';
 
 // ============== Core Signal Types (reusable for trading) ==============
 
@@ -87,7 +89,8 @@ export class StrategyExecutor {
     private logger: Logger,
     private ccxtCandleWatchService: CcxtCandleWatchService,
     private ccxtCandlePrefillService: CcxtCandlePrefillService,
-    private strategyRegistry: StrategyRegistry
+    private strategyRegistry: StrategyRegistry,
+    private aiService?: AiService
   ) {}
 
   /**
@@ -127,12 +130,7 @@ export class StrategyExecutor {
       priceHistory.push(candle.close);
 
       // Create context with current lastSignal so strategy can close itself
-      const context = new TypedStrategyContext<TIndicators>(
-        candle.close,
-        indicatorArrays as any,
-        lastSignal,
-        priceHistory
-      );
+      const context = new TypedStrategyContext<TIndicators>(candle.close, indicatorArrays as any, lastSignal, priceHistory);
 
       // Execute strategy
       const signalBuilder = new StrategySignal();
@@ -198,13 +196,7 @@ export class StrategyExecutor {
         return undefined;
       }
     } else {
-      const lookbacks = await this.exchangeCandleCombine.fetchCombinedCandles(
-        exchange,
-        symbol,
-        period,
-        [],
-        olderThenCurrentPeriod
-      );
+      const lookbacks = await this.exchangeCandleCombine.fetchCombinedCandles(exchange, symbol, period, [], olderThenCurrentPeriod);
 
       if (!lookbacks[exchange] || lookbacks[exchange].length === 0) {
         this.logger.info(`Strategy skipped: no candles: ${strategyName} ${exchange}:${symbol}`);
@@ -231,7 +223,42 @@ export class StrategyExecutor {
 
     const strategy = new StrategyClass(options);
     const signalRows = await this.execute(strategy, candlesAsc);
-    return signalRows[signalRows.length - 1]?.signal;
+    const lastSignalRow = signalRows[signalRows.length - 1];
+    let signal = lastSignalRow?.signal;
+
+    // AI Filter: Validate signal with AI if enabled and signal exists
+    if (signal && this.aiService && this.aiService.isEnabled()) {
+      try {
+        const aiInput: AiAnalysisInput = {
+          pair: symbol,
+          exchange: exchange,
+          signal: signal,
+          price: lastSignalRow.price,
+          indicators: lastSignalRow.debug,
+          lastSignal: signalRows.length > 1 ? signalRows[signalRows.length - 2]?.signal : undefined,
+          timeframe: period
+        };
+
+        this.logger.info(`[StrategyExecutor] AI analyzing ${signal} signal for ${symbol}...`);
+        const aiResult = await this.aiService.analyze(aiInput);
+
+        this.logger.info(
+          `[StrategyExecutor] AI result: action=${aiResult.action}, confidence=${(aiResult.confidence * 100).toFixed(0)}%, risk=${aiResult.riskLevel}`
+        );
+        this.logger.debug(`[StrategyExecutor] AI reasoning: ${aiResult.reasoning}`);
+
+        if (!aiResult.confirmed) {
+          this.logger.info(`[StrategyExecutor] AI rejected ${signal} signal for ${symbol} - action: ${aiResult.action}`);
+          signal = undefined;
+        } else {
+          this.logger.info(`[StrategyExecutor] AI confirmed ${signal} signal for ${symbol}`);
+        }
+      } catch (e: any) {
+        this.logger.error(`[StrategyExecutor] AI analysis failed: ${e.message} - proceeding with original signal`);
+      }
+    }
+
+    return signal;
   }
 }
 
@@ -305,13 +332,7 @@ export class TypedBacktestEngine {
     const prefillTime = startTime - 200 * convertPeriodToMinute(period) * 60;
 
     // Fetch candles
-    const candleData = await this.exchangeCandleCombine.fetchCombinedCandlesSince(
-      exchange,
-      symbol,
-      period,
-      [],
-      prefillTime
-    );
+    const candleData = await this.exchangeCandleCombine.fetchCombinedCandlesSince(exchange, symbol, period, [], prefillTime);
 
     const candles = candleData[exchange] || [];
 
@@ -334,10 +355,7 @@ export class TypedBacktestEngine {
    * Process signals into trades and calculate backtest metrics
    * This is backtest-specific logic
    */
-  private processSignals(
-    signalRows: SignalRow[],
-    initialCapital: number
-  ): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
+  private processSignals(signalRows: SignalRow[], initialCapital: number): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
     const backtestRows: BacktestRow[] = [];
     const trades: BacktestTrade[] = [];
 
@@ -422,15 +440,11 @@ export class TypedBacktestEngine {
     const profitableTrades = trades.filter(t => t.profitPercent > 0).length;
     const losingTrades = trades.filter(t => t.profitPercent <= 0).length;
     const totalProfitPercent = ((capital - initialCapital) / initialCapital) * 100;
-    const avgProfit = trades.length > 0
-      ? trades.reduce((sum, t) => sum + t.profitPercent, 0) / trades.length
-      : 0;
+    const avgProfit = trades.length > 0 ? trades.reduce((sum, t) => sum + t.profitPercent, 0) / trades.length : 0;
 
     const returns = trades.map(t => t.profitPercent);
     const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
-    const variance = returns.length > 1
-      ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length
-      : 0;
+    const variance = returns.length > 1 ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length : 0;
     const stdDev = Math.sqrt(variance);
     const sharpeRatio = stdDev > 0 ? (avgReturn - 3) / stdDev : 0;
 

@@ -60,11 +60,20 @@ export class ExchangeInstanceService {
       throw new Error(`Exchange "${profile.exchange}" not supported`);
     }
 
-    const exchange: ccxt.Exchange = new ExchangeClass({
+    const config: any = {
       apiKey: profile.apiKey,
       secret: profile.secret,
       enableRateLimit: true
-    });
+    };
+
+    if (profile.exchange.toLowerCase().includes('binance')) {
+      config.options = {
+        warnOnFetchOpenOrdersWithoutSymbol: false,
+        warnOnFetchOpenOrdersWithoutSymbolForFetchOpenOrders: false
+      };
+    }
+
+    const exchange: ccxt.Exchange = new ExchangeClass(config);
 
     await exchange.loadMarkets();
 

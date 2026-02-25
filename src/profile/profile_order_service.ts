@@ -8,10 +8,7 @@ import { MarketData, OrderParams, OrderResult, OrderInfo, OrderSide, PositionInf
 export async function fetchMarketData(exchange: ccxt.Exchange, pair: string): Promise<MarketData> {
   // Fetch both in parallel - order book for bid/ask, ticker for last price
   // Note: some exchanges (e.g., binanceusdm) don't accept depth limit of 1
-  const [orderBook, ticker] = await Promise.all([
-    exchange.fetchOrderBook(pair),
-    exchange.fetchTicker(pair)
-  ]);
+  const [orderBook, ticker] = await Promise.all([exchange.fetchOrderBook(pair), exchange.fetchTicker(pair)]);
 
   const bid = orderBook.bids[0]?.[0];
   const ask = orderBook.asks[0]?.[0];
@@ -43,10 +40,7 @@ export function roundAmountDown(value: number, precision: number | undefined): n
 /**
  * Places a limit order on the exchange
  */
-export async function placeLimitOrder(
-  exchange: ccxt.Exchange,
-  params: OrderParams
-): Promise<OrderResult> {
+export async function placeLimitOrder(exchange: ccxt.Exchange, params: OrderParams): Promise<OrderResult> {
   if (!params.price) {
     throw new Error('Price is required for limit orders');
   }
@@ -75,17 +69,11 @@ export async function placeLimitOrder(
     const minAmount = market.limits?.amount?.min;
     throw new Error(
       `Order amount too small for ${params.pair}. Minimum is ${minAmount} ${market.base}` +
-      (params.isQuoteCurrency ? ` (increase your ${market.quote} amount)` : '')
+        (params.isQuoteCurrency ? ` (increase your ${market.quote} amount)` : '')
     );
   }
 
-  const order = await exchange.createOrder(
-    params.pair,
-    'limit',
-    params.side,
-    roundedBaseAmount,
-    roundedPrice
-  );
+  const order = await exchange.createOrder(params.pair, 'limit', params.side, roundedBaseAmount, roundedPrice);
 
   return {
     id: order.id,
@@ -104,10 +92,7 @@ export async function placeLimitOrder(
  * Places a market order on the exchange
  * If isQuoteCurrency is true, converts quote amount to base amount first
  */
-export async function placeMarketOrder(
-  exchange: ccxt.Exchange,
-  params: OrderParams
-): Promise<OrderResult> {
+export async function placeMarketOrder(exchange: ccxt.Exchange, params: OrderParams): Promise<OrderResult> {
   // Load markets for precision info
   const markets = await exchange.loadMarkets();
   const market = markets[params.pair];
@@ -139,16 +124,11 @@ export async function placeMarketOrder(
     const minAmount = market.limits?.amount?.min;
     throw new Error(
       `Order amount too small for ${params.pair}. Minimum is ${minAmount} ${market.base}` +
-      (params.isQuoteCurrency ? ` (increase your ${market.quote} amount)` : '')
+        (params.isQuoteCurrency ? ` (increase your ${market.quote} amount)` : '')
     );
   }
 
-  const order = await exchange.createOrder(
-    params.pair,
-    'market',
-    params.side,
-    roundedBaseAmount
-  );
+  const order = await exchange.createOrder(params.pair, 'market', params.side, roundedBaseAmount);
 
   return {
     id: order.id,
@@ -166,11 +146,13 @@ export async function placeMarketOrder(
 /**
  * Fetches open orders from the exchange
  */
-export async function fetchOpenOrders(
-  exchange: ccxt.Exchange,
-  pair?: string
-): Promise<OrderInfo[]> {
+export async function fetchOpenOrders(exchange: ccxt.Exchange, pair?: string): Promise<OrderInfo[]> {
   let orders: any[];
+
+  // Binance Futures requires a symbol argument
+  if (!pair && exchange.id.toLowerCase().includes('binance')) {
+    return [];
+  }
 
   // When fetching ALL orders on Bybit, we need to specify categories
   if (!pair && exchange.id.toLowerCase().includes('bybit')) {
@@ -205,11 +187,7 @@ export async function fetchOpenOrders(
 /**
  * Fetches closed/filled orders from the exchange
  */
-export async function fetchClosedOrders(
-  exchange: ccxt.Exchange,
-  pair?: string,
-  limit?: number
-): Promise<OrderInfo[]> {
+export async function fetchClosedOrders(exchange: ccxt.Exchange, pair?: string, limit?: number): Promise<OrderInfo[]> {
   let orders: any[];
 
   // When fetching ALL orders on Bybit, we need to specify categories
@@ -295,11 +273,7 @@ export async function fetchOpenPositions(exchange: ccxt.Exchange): Promise<Posit
  * Closes an open swap/futures position via a limit or market order.
  * Fetches the current position to determine side and size — caller only needs symbol and close type.
  */
-export async function closePosition(
-  exchange: ccxt.Exchange,
-  symbol: string,
-  type: 'limit' | 'market'
-): Promise<any> {
+export async function closePosition(exchange: ccxt.Exchange, symbol: string, type: 'limit' | 'market'): Promise<any> {
   const extraParams: Record<string, any> = { reduceOnly: true };
 
   if (exchange.id.toLowerCase().includes('bybit')) {
@@ -325,9 +299,10 @@ export async function closePosition(
 
   // Limit close: use best available price from order book
   const orderBook = await exchange.fetchOrderBook(symbol);
-  const limitPrice: number = closeSide === 'sell'
-    ? orderBook.bids[0]?.[0]  // closing long — sell at best bid
-    : orderBook.asks[0]?.[0]; // closing short — buy at best ask
+  const limitPrice: number =
+    closeSide === 'sell'
+      ? orderBook.bids[0]?.[0] // closing long — sell at best bid
+      : orderBook.asks[0]?.[0]; // closing short — buy at best ask
 
   if (!limitPrice) {
     throw new Error(`Could not fetch limit price for ${symbol}`);
@@ -339,21 +314,14 @@ export async function closePosition(
 /**
  * Cancels an order on the exchange
  */
-export async function cancelOrder(
-  exchange: ccxt.Exchange,
-  orderId: string,
-  pair: string
-): Promise<any> {
+export async function cancelOrder(exchange: ccxt.Exchange, orderId: string, pair: string): Promise<any> {
   return await exchange.cancelOrder(orderId, pair);
 }
 
 /**
  * Cancels all open orders for a pair
  */
-export async function cancelAllOrders(
-  exchange: ccxt.Exchange,
-  pair: string
-): Promise<void> {
+export async function cancelAllOrders(exchange: ccxt.Exchange, pair: string): Promise<void> {
   const orders = await fetchOpenOrders(exchange, pair);
 
   for (const order of orders) {

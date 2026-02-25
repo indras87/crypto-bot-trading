@@ -70,7 +70,11 @@ import { ObvPumpDump } from '../strategy/strategies/obv_pump_dump';
 import { PivotReversalStrategy } from '../strategy/strategies/pivot_reversal_strategy';
 import { Trader } from '../strategy/strategies/trader';
 import { Noop as NoopStrategy } from '../strategy/strategies/noop';
+import { Survival } from '../strategy/strategies/survival';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
+import { AiService, NoopAiService } from '../ai/ai_service';
+import { GeminiProvider } from '../ai/gemini_provider';
+import type { AiServiceConfig } from '../ai/types';
 
 // Interfaces
 interface Config {
@@ -109,6 +113,8 @@ export { FileCache } from '../utils/file_cache';
 export { BotRunner } from '../strategy/bot_runner';
 export { ExchangeInstanceService } from './system/exchange_instance_service';
 export { BinancePriceService } from '../utils/binance_price_service';
+export { AiService, NoopAiService } from '../ai/ai_service';
+export { GeminiProvider } from '../ai/gemini_provider';
 
 let db: Sqlite.Database | undefined;
 let config: Config;
@@ -145,6 +151,7 @@ let fileCache: FileCache;
 let botRunner: BotRunner;
 let exchangeInstanceService: ExchangeInstanceService;
 let binancePriceService: BinancePriceService;
+let aiService: AiService;
 
 const parameters: Parameters = {
   projectDir: ''
@@ -201,6 +208,7 @@ export interface Services {
   getFileCache(): FileCache;
   getBotRunner(): BotRunner;
   getBinancePriceService(): BinancePriceService;
+  getAiService(): AiService;
 }
 
 const services: Services = {
@@ -327,7 +335,6 @@ const services: Services = {
     return (notify = new Notify(notifiers));
   },
 
-
   getStrategyExecutor: function (): StrategyExecutor {
     if (strategyExecutor) {
       return strategyExecutor;
@@ -339,7 +346,8 @@ const services: Services = {
       this.getLogger(),
       this.getCcxtCandleWatchService(),
       this.getCcxtCandlePrefillService(),
-      this.getV2StrategyRegistry()
+      this.getV2StrategyRegistry(),
+      this.getAiService()
     ));
   },
 
@@ -395,7 +403,6 @@ const services: Services = {
     return (tickerRepository = new TickerRepository(this.getDatabase(), this.getLogger()));
   },
 
-
   getQueue: function (): QueueManager {
     if (queue) {
       return queue;
@@ -421,13 +428,7 @@ const services: Services = {
   },
 
   createTradeInstance: function (): Trade {
-    return new Trade(
-      this.getNotifier(),
-      this.getLogger(),
-      this.getLogsRepository(),
-      this.getTickerLogRepository(),
-      this.getBotRunner()
-    );
+    return new Trade(this.getNotifier(), this.getLogger(), this.getLogsRepository(), this.getTickerLogRepository(), this.getBotRunner());
   },
 
   createMailer: function (): any {
@@ -466,7 +467,13 @@ const services: Services = {
   },
 
   getDashboardSettingsController: function (templateHelpers: any): DashboardSettingsController {
-    return new DashboardSettingsController(templateHelpers, this.getDashboardConfigService(), this.getProfilePairService(), this.getCcxtCandlePrefillService(), this.getCcxtCandleWatchService());
+    return new DashboardSettingsController(
+      templateHelpers,
+      this.getDashboardConfigService(),
+      this.getProfilePairService(),
+      this.getCcxtCandlePrefillService(),
+      this.getCcxtCandleWatchService()
+    );
   },
 
   getDashboardConfigService: function (): DashboardConfigService {
@@ -487,7 +494,12 @@ const services: Services = {
     if (ccxtCandleWatchService) {
       return ccxtCandleWatchService;
     }
-    return (ccxtCandleWatchService = new CcxtCandleWatchService(this.getCandleImporter(), this.getDashboardConfigService(), this.getLogger(), this.getProfileService()));
+    return (ccxtCandleWatchService = new CcxtCandleWatchService(
+      this.getCandleImporter(),
+      this.getDashboardConfigService(),
+      this.getLogger(),
+      this.getProfileService()
+    ));
   },
 
   getTradesController: function (templateHelpers: any): TradesController {
@@ -507,7 +519,13 @@ const services: Services = {
   },
 
   getBacktestController: function (templateHelpers: any): BacktestController {
-    return new BacktestController(templateHelpers, this.getExchangeCandleCombine(), this.getV2StrategyRegistry(), this.getStrategyExecutor(), this.getCcxtCandleWatchService());
+    return new BacktestController(
+      templateHelpers,
+      this.getExchangeCandleCombine(),
+      this.getV2StrategyRegistry(),
+      this.getStrategyExecutor(),
+      this.getCcxtCandleWatchService()
+    );
   },
 
   getLogsController: function (templateHelpers: any): LogsController {
@@ -523,7 +541,13 @@ const services: Services = {
   },
 
   getProfileController: function (templateHelpers: any): ProfileController {
-    return new ProfileController(templateHelpers, this.getProfileService(), this.getProfilePairService(), this.getV2StrategyRegistry(), this.getCcxtCandleWatchService());
+    return new ProfileController(
+      templateHelpers,
+      this.getProfileService(),
+      this.getProfilePairService(),
+      this.getV2StrategyRegistry(),
+      this.getCcxtCandleWatchService()
+    );
   },
 
   getSettingsController: function (templateHelpers: any): SettingsController {
@@ -590,6 +614,7 @@ const services: Services = {
       PivotReversalStrategy,
       Trader,
       NoopStrategy,
+      Survival
     ]));
   },
 
@@ -606,13 +631,7 @@ const services: Services = {
       return botRunner;
     }
 
-    return (botRunner = new BotRunner(
-      this.getProfileService(),
-      this.getStrategyExecutor(),
-      this.getNotifier(),
-      this.getSignalRepository(),
-      this.getLogger()
-    ));
+    return (botRunner = new BotRunner(this.getProfileService(), this.getStrategyExecutor(), this.getNotifier(), this.getSignalRepository(), this.getLogger()));
   },
 
   getBinancePriceService: function (): BinancePriceService {
@@ -621,6 +640,26 @@ const services: Services = {
     }
 
     return (binancePriceService = new BinancePriceService(this.getFileCache()));
+  },
+
+  getAiService: function (): AiService {
+    if (aiService) {
+      return aiService;
+    }
+
+    const cfg = this.getConfig();
+    const aiConfig = cfg?.ai as AiServiceConfig | undefined;
+
+    if (!aiConfig?.enabled) {
+      return (aiService = new NoopAiService());
+    }
+
+    if (aiConfig.provider === 'gemini' && aiConfig.gemini?.api_key) {
+      const minConfidence = aiConfig.options?.min_confidence || 0.7;
+      return (aiService = new GeminiProvider(aiConfig.gemini.api_key, aiConfig.gemini.model || 'gemini-2.0-flash', this.getLogger(), minConfidence));
+    }
+
+    return (aiService = new NoopAiService());
   }
 };
 
