@@ -345,11 +345,12 @@ export class TypedBacktestEngine {
       period
     });
 
-    // Process signals into trades and calculate profits
-    const { backtestRows, trades, summary } = this.processSignals(signalRows, initialCapital);
-
     // Get indicator keys from strategy
     const indicatorDefinitions = strategyInstance.defineIndicators();
+    const strategyOptions = strategyInstance.getOptions?.() || {};
+
+    // Process signals into trades and calculate profits
+    const { backtestRows, trades, summary } = this.processSignals(signalRows, initialCapital, strategyOptions);
 
     // Calculate time range from candles
     const startTime = candlesAsc.length > 0 ? candlesAsc[0].time : 0;
@@ -357,7 +358,6 @@ export class TypedBacktestEngine {
 
     // Get strategy name from constructor name
     const strategyName = strategyInstance.constructor?.name || 'unknown';
-    const strategyOptions = strategyInstance.getOptions?.() || {};
 
     return {
       strategyName,
@@ -414,9 +414,12 @@ export class TypedBacktestEngine {
    * Process signals into trades and calculate backtest metrics
    * This is backtest-specific logic
    */
-  private processSignals(signalRows: SignalRow[], initialCapital: number): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
+  private processSignals(signalRows: SignalRow[], initialCapital: number, options: any = {}): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
     const backtestRows: BacktestRow[] = [];
     const trades: BacktestTrade[] = [];
+
+    const stopLossPercent = options.stop_loss ? parseFloat(options.stop_loss) : null;
+    const takeProfitPercent = options.take_profit ? parseFloat(options.take_profit) : null;
 
     let currentPosition: { side: 'long' | 'short'; entryPrice: number; entryTime: number; aiConfirmation?: AiAnalysisResult } | null = null;
     let capital = initialCapital;
@@ -424,13 +427,6 @@ export class TypedBacktestEngine {
     let maxDrawdown = 0;
 
     for (const row of signalRows) {
-      // Logic handling for AI Rejection
-      // If AI rejected the signal (row.ai.confirmed == false), the effective signal was undefined in the executor loop
-      // But here we see the raw signal in 'row.signal'.
-      // We need to know if we should act on it.
-      // The executor loop used `effectiveSignal` to maintain state.
-      // Here we need to replicate that logic or rely on the fact that if AI rejected, we shouldn't open.
-      
       let effectiveSignal = row.signal;
       if (row.ai && !row.ai.confirmed) {
         effectiveSignal = undefined; // Treat as no signal for trading logic
@@ -443,6 +439,15 @@ export class TypedBacktestEngine {
           profitPercent = ((row.price - currentPosition.entryPrice) / currentPosition.entryPrice) * 100;
         } else {
           profitPercent = ((currentPosition.entryPrice - row.price) / currentPosition.entryPrice) * 100;
+        }
+
+        // --- AUTOMATIC STOP LOSS / TAKE PROFIT CHECK ---
+        if (stopLossPercent && profitPercent <= -stopLossPercent) {
+          effectiveSignal = 'close';
+          row.debug.exit_reason = 'stop_loss';
+        } else if (takeProfitPercent && profitPercent >= takeProfitPercent) {
+          effectiveSignal = 'close';
+          row.debug.exit_reason = 'take_profit';
         }
 
         // Track drawdown

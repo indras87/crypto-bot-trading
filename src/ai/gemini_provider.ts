@@ -18,7 +18,7 @@ export class GeminiProvider implements AiService {
     if (this.enabled) {
       this.genAI = new GoogleGenerativeAI(apiKey);
       // Ensure we use a valid model name (fallback to 2.0-flash)
-      const validModel = model && (model.includes('gemini-1.5') || model.includes('gemini-2.0')) ? model : 'gemini-2.5-flash';
+      const validModel = model && (model.includes('gemini-3-flash-preview') || model.includes('gemini-2.0')) ? model : 'gemini-2.5-flash';
       
       this.modelInstance = this.genAI.getGenerativeModel({ 
         model: validModel,

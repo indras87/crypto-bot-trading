@@ -10,16 +10,6 @@
             </nav>
         </div>
 
-        <div class="bg-blue-50 border border-blue-200 rounded mb-4 p-4" id="ai-recommendations-container" style="display: none;">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="font-semibold text-blue-800"><i class="fas fa-robot"></i> AI Strategy Insights & Optimization</h3>
-                <span class="text-xs text-blue-600 font-mono" id="ai-status">Analyzing...</span>
-            </div>
-            <div id="ai-recommendations-content" class="text-sm text-blue-900 prose prose-sm max-w-none">
-                <i class="fas fa-spinner fa-spin"></i> Asking Gemini for optimization tips...
-            </div>
-        </div>
-
         <div class="bg-white border border-gray-200 rounded mb-4">
             <div class="px-4 py-3 border-b border-gray-200 font-medium">
                 Summary <span class="text-gray-500"> - <%= exchange %>: <%= displaySymbol %> - <%= period %></span>
@@ -192,54 +182,6 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', async function() {
-    const container = document.getElementById('ai-recommendations-container');
-    const content = document.getElementById('ai-recommendations-content');
-    const status = document.getElementById('ai-status');
-
-    if (!container || !content) return;
-
-    // Data for AI analysis
-    const resultData = {
-        strategyName: '<%= strategyName %>',
-        strategyOptions: <%- JSON.stringify(strategyOptions || {}) %>,
-        exchange: '<%= exchange %>',
-        symbol: '<%= symbol %>',
-        period: '<%= period %>',
-        summary: <%- JSON.stringify(summary) %>
-    };
-
-    container.style.display = 'block';
-
-    try {
-        const response = await fetch('/backtest/analyze-result', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(resultData)
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch AI recommendations');
-
-        const data = await response.json();
-        
-        // Render markdown
-        content.innerHTML = marked.parse(data.analysis || 'No recommendations found.');
-        status.textContent = 'Analysis Complete';
-        status.classList.remove('text-blue-600');
-        status.classList.add('text-green-600');
-    } catch (e) {
-        console.error(e);
-        content.innerHTML = '<span class="text-red-600">Failed to load AI recommendations: ' + e.message + '</span>';
-        status.textContent = 'Error';
-        status.classList.remove('text-blue-600');
-        status.classList.add('text-red-600');
-    }
-});
-</script>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/techan.js/0.8.0/techan.min.js"></script>
 <script src="/js/backtest.js?v=<%= assetVersion %>"></script>

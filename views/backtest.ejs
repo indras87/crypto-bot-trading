@@ -57,6 +57,17 @@
                         </div>
 
                         <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="form-stop-loss" class="block font-medium mb-1 text-red-600">Stop Loss (%)</label>
+                                    <input type="number" step="0.1" class="w-full border border-gray-300 rounded px-3 py-2" id="form-stop-loss" placeholder="e.g. 2.0">
+                                </div>
+                                <div>
+                                    <label for="form-take-profit" class="block font-medium mb-1 text-green-600">Take Profit (%)</label>
+                                    <input type="number" step="0.1" class="w-full border border-gray-300 rounded px-3 py-2" id="form-take-profit" placeholder="e.g. 5.0">
+                                </div>
+                            </div>
+
                             <div>
                                 <label for="form-initial-capital" class="block font-medium mb-1">Initial Capital</label>
                                 <input class="w-full border border-gray-300 rounded px-3 py-2" id="form-initial-capital" name="initial_capital" value="1000" required>
@@ -96,13 +107,44 @@ document.getElementById('form-strategy').addEventListener('change', function() {
     const data = strategyData[this.value];
     const descEl = document.getElementById('strategy-description');
     const optionsEl = document.getElementById('form-options');
+    const slEl = document.getElementById('form-stop-loss');
+    const tpEl = document.getElementById('form-take-profit');
 
     if (data) {
         descEl.textContent = data.description;
         optionsEl.value = JSON.stringify(data.defaultOptions, null, 2);
+        
+        // Fill SL/TP inputs if they exist in defaults
+        slEl.value = data.defaultOptions.stop_loss || '';
+        tpEl.value = data.defaultOptions.take_profit || '';
     } else {
         descEl.textContent = '';
         optionsEl.value = '';
+        slEl.value = '';
+        tpEl.value = '';
     }
 });
+
+// Sync SL/TP inputs back to JSON
+function syncOptions() {
+    const optionsEl = document.getElementById('form-options');
+    const slValue = document.getElementById('form-stop-loss').value;
+    const tpValue = document.getElementById('form-take-profit').value;
+    
+    try {
+        let options = JSON.parse(optionsEl.value || '{}');
+        if (slValue) options.stop_loss = parseFloat(slValue);
+        else delete options.stop_loss;
+        
+        if (tpValue) options.take_profit = parseFloat(tpValue);
+        else delete options.take_profit;
+        
+        optionsEl.value = JSON.stringify(options, null, 2);
+    } catch (e) {
+        // ignore if JSON is currently invalid
+    }
+}
+
+document.getElementById('form-stop-loss').addEventListener('input', syncOptions);
+document.getElementById('form-take-profit').addEventListener('input', syncOptions);
 </script>
