@@ -1,8 +1,8 @@
 <!-- Backtest Form -->
-<div class="p-4">
+<div class="p-3 md:p-4">
     <div class="max-w-4xl mx-auto">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">Backtesting</h1>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">Backtesting</h1>
             <nav class="text-sm text-gray-500">
                 <a href="/" class="text-blue-600 hover:underline">Dashboard</a> /
                 <a href="/backtest" class="text-blue-600 hover:underline">Backtesting</a>
@@ -10,9 +10,9 @@
         </div>
 
         <div class="bg-white border border-gray-200 rounded">
-            <div class="p-6">
+            <div class="p-4 md:p-6">
                 <form action="/backtest/submit" method="post" class="backtest-v2-form">
-                    <div class="grid grid-cols-2 gap-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                         <div class="space-y-4">
                             <div>
                                 <label for="form-pair" class="block font-medium mb-1">Pair</label>
@@ -76,13 +76,13 @@
 
                             <div>
                                 <label for="form-options" class="block font-medium mb-1">Strategy Options (JSON)</label>
-                                <textarea class="w-full border border-gray-300 rounded px-3 py-2 font-mono text-sm" id="form-options" rows="9" name="options" placeholder='{"option": "value"}'></textarea>
+                                <textarea class="w-full border border-gray-300 rounded px-3 py-2 font-mono text-sm" id="form-options" rows="6" name="options" placeholder='{"option": "value"}'></textarea>
                                 <p class="text-xs text-gray-500 mt-1">Optional: Override default strategy options</p>
                             </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="mt-6 bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 cursor-pointer">
+                    <button type="submit" class="mt-6 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">
                         Run Backtest
                     </button>
                 </form>

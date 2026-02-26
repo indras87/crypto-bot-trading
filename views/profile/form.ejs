@@ -1,16 +1,24 @@
-<div class="p-4">
-    <div class="flex gap-6 max-w-[1100px]">
-        <%- include('../components/settings_sidebar', { activeSettingsPage }) %>
+<div class="p-3 md:p-4">
+    <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-[1100px]">
+        <!-- Mobile Sidebar Toggle -->
+        <button id="sidebar-toggle" class="lg:hidden flex items-center justify-between px-4 py-2 bg-white border border-gray-200 rounded shadow-sm text-sm">
+            <span><i class="fas fa-bars mr-2"></i>Menu</span>
+        </button>
+
+        <!-- Sidebar -->
+        <div id="sidebar" class="hidden lg:block lg:w-52 shrink-0">
+            <%- include('../components/settings_sidebar', { activeSettingsPage }) %>
+        </div>
 
         <div class="flex-1 min-w-0">
-            <h1 class="text-2xl font-semibold mb-4"><%= isEdit ? 'Edit Profile' : 'New Profile' %></h1>
+            <h1 class="text-xl md:text-2xl font-semibold mb-4"><%= isEdit ? 'Edit Profile' : 'New Profile' %></h1>
 
-            <form action="<%= isEdit ? '/profiles/' + profile.id : '/profiles' %>" method="POST" autocomplete="off" class="bg-white rounded shadow p-6 max-w-[600px]">
+            <form action="<%= isEdit ? '/profiles/' + profile.id : '/profiles' %>" method="POST" autocomplete="off" class="bg-white rounded shadow p-4 md:p-6 max-w-[600px]">
                 <!-- Name -->
                 <div class="mb-4">
                     <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Profile Name *</label>
                     <input type="text" id="name" name="name" value="<%= profile ? profile.name : '' %>"
-                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           class="w-full border border-gray-300 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                            autocomplete="off" required>
                 </div>
 
@@ -30,7 +38,7 @@
                     <label for="apiKey" class="block text-sm font-medium text-gray-700 mb-1">API Key</label>
                     <input type="text" id="apiKey" name="apiKey"
                            value="<%= profile ? profile.apiKey || '' : '' %>"
-                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                           class="w-full border border-gray-300 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                            autocomplete="off">
                 </div>
 
@@ -39,16 +47,16 @@
                     <label for="secret" class="block text-sm font-medium text-gray-700 mb-1">API Secret</label>
                     <input type="text" id="secret" name="secret"
                            value="<%= profile ? profile.secret || '' : '' %>"
-                           class="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                           class="w-full border border-gray-300 rounded px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                            autocomplete="off">
                 </div>
 
                 <!-- Submit Buttons -->
-                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                    <a href="/profiles" class="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-100">
+                    <a href="/profiles" class="px-4 py-2.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 cursor-pointer text-center">
                         Cancel
                     </a>
-                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded text-sm cursor-pointer">
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded text-sm cursor-pointer">
                         <i class="fas fa-save mr-1"></i> <%= isEdit ? 'Save' : 'Create' %>
                     </button>
                 </div>
@@ -56,3 +64,9 @@
         </div>
     </div>
 </div>
+
+<script>
+document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('hidden');
+});
+</script>

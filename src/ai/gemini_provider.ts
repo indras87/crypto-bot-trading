@@ -19,13 +19,13 @@ export class GeminiProvider implements AiService {
       this.genAI = new GoogleGenerativeAI(apiKey);
       // Ensure we use a valid model name (fallback to 2.0-flash)
       const validModel = model && (model.includes('gemini-3-flash-preview') || model.includes('gemini-2.0')) ? model : 'gemini-2.5-flash';
-      
-      this.modelInstance = this.genAI.getGenerativeModel({ 
+
+      this.modelInstance = this.genAI.getGenerativeModel({
         model: validModel,
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 4096,
-          topP: 0.1,
+          topP: 0.1
         }
       });
     }
@@ -100,7 +100,7 @@ Markdown format only. Be concise and professional.`;
 
     try {
       // Use a fresh model instance for text-heavy content to avoid shared config issues
-      const textModel = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const textModel = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       const resultObj = await textModel.generateContent(prompt);
       const response = await resultObj.response;
       return response.text() || 'No recommendations generated.';
@@ -117,6 +117,35 @@ Markdown format only. Be concise and professional.`;
 
     const signalAction = input.signal === 'long' ? 'BUY/LONG' : input.signal === 'short' ? 'SELL/SHORT' : 'CLOSE POSITION';
 
+    if (input.backtestMode) {
+      return `ACT AS A TRADING ROBOT. VALIDATE THIS SIGNAL.
+OUTPUT ONLY RAW JSON. NO MARKDOWN. NO EXTRA TEXT.
+
+CONTEXT:
+- Pair: ${input.exchange}:${input.pair}
+- Price: ${input.price.toFixed(2)}
+- TF: ${input.timeframe}
+- Action: ${signalAction}
+
+INDICATORS:
+${indicatorStr}
+
+VALIDATION RULES (MUST ALL PASS):
+1. PSAR: Verify histogram crossed (price crossed PSAR)
+2. ADX: Must be > 25 for strong trend
+3. EMA: Long trend must align with signal direction
+4. RSI: Must be between 30-70 (not overbought/oversold)
+5. Risk-Reward: Must have at least 2:1 potential
+
+JSON SCHEMA:
+{
+  "confirmed": boolean,
+  "confidence": number,
+  "action": "confirm"|"reject"|"wait",
+  "riskLevel": "low"|"medium"|"high"
+}`;
+    }
+
     return `ACT AS A TRADING ROBOT. VALIDATE THIS SIGNAL.
 OUTPUT ONLY RAW JSON. NO MARKDOWN. NO EXTRA TEXT.
 
@@ -128,6 +157,13 @@ CONTEXT:
 
 INDICATORS:
 ${indicatorStr}
+
+VALIDATION RULES (MUST ALL PASS):
+1. PSAR: Verify histogram crossed (price crossed PSAR)
+2. ADX: Must be > 25 for strong trend
+3. EMA: Long trend must align with signal direction
+4. RSI: Must be between 30-70 (not overbought/oversold)
+5. Risk-Reward: Must have at least 2:1 potential
 
 JSON SCHEMA:
 {
@@ -145,7 +181,7 @@ JSON SCHEMA:
     try {
       let start = text.indexOf('{');
       let end = text.lastIndexOf('}');
-      
+
       if (start !== -1 && end === -1) {
         text = text + '\n}';
         end = text.lastIndexOf('}');
@@ -154,7 +190,7 @@ JSON SCHEMA:
       if (start === -1 || end === -1) {
         throw new Error('No JSON structure found in response');
       }
-      
+
       const jsonStr = text.substring(start, end + 1);
       const parsed = JSON.parse(jsonStr);
 

@@ -1,8 +1,8 @@
 <!-- Content -->
-<div class="p-4">
+<div class="p-3 md:p-4">
     <div class="max-w-[900px] mx-auto">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">Orders</h1>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">Orders</h1>
             <nav class="text-[13px] text-gray-500">
                 <a href="/" class="text-blue-600 hover:underline">Dashboard</a> / Orders
             </nav>
@@ -22,12 +22,13 @@
         <div class="flex gap-4">
             <!-- Pairs list -->
             <div class="flex-1 bg-white border border-gray-200 rounded">
-                <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <div class="px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <span class="font-medium">Profile:Pairs (<%= allPairs.length %>)</span>
-                    <input type="text" id="pair-filter" placeholder="Filter..." class="border border-gray-300 rounded px-3 py-1.5 text-[13px] w-48">
+                    <input type="text" id="pair-filter" placeholder="Filter..." class="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-48">
                 </div>
-                <div id="pairs-list" class="max-h-[calc(100vh-280px)] overflow-y-auto">
+                <div id="pairs-list" class="max-h-[60vh] md:max-h-[calc(100vh-280px)] overflow-y-auto">
                     <% if (allPairs && allPairs.length > 0) { %>
+                            <div class="overflow-x-auto">
                             <table class="w-full border-collapse text-[13px]">
                             <thead class="sticky top-0 bg-gray-50">
                                 <tr>
@@ -40,16 +41,17 @@
                                 <tr class="pair-item hover:bg-gray-100 cursor-pointer"
                                     data-search="<%= item.profileName.toLowerCase() %> <%= item.pair.toLowerCase() %>"
                                     onclick="window.location.href='/orders/<%= item.profileId %>/<%= encodeURIComponent(item.pair) %>'">
-                                    <td class="border border-gray-200 px-3 py-2 whitespace-nowrap">
+                                    <td class="border border-gray-200 px-3 py-3 md:py-2 whitespace-nowrap">
                                         <span class="text-gray-500"><%= item.profileName %>:</span><%= item.pair %>
                                     </td>
-                                    <td class="border border-gray-200 px-3 py-2 text-center">
+                                    <td class="border border-gray-200 px-3 py-3 md:py-2 text-center">
                                         <%- getTypeBadge(item.type) %>
                                     </td>
                                 </tr>
                             <% }); %>
                             </tbody>
                         </table>
+                        </div>
                     <% } else { %>
                         <div class="px-4 py-8 text-center text-gray-500">
                             <i class="fas fa-circle-exclamation text-4xl mb-3 text-gray-300"></i>

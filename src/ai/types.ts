@@ -8,6 +8,7 @@ export interface AiAnalysisInput {
   indicators: Record<string, any>;
   lastSignal: SignalType;
   timeframe: string;
+  backtestMode?: boolean;
 }
 
 export interface AiAnalysisResult {

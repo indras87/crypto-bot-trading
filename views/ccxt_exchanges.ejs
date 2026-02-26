@@ -1,8 +1,8 @@
 <!-- Content -->
-<div class="p-4">
+<div class="p-3 md:p-4">
     <div class="max-w-[1800px] mx-auto">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">CCXT Exchanges</h1>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">CCXT Exchanges</h1>
             <nav class="text-[13px] text-gray-500">
                 <a href="/" class="text-blue-600 hover:underline">Dashboard</a> / Tools / CCXT Exchanges
             </nav>
@@ -10,12 +10,12 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <!-- Exchanges Table -->
-            <div class="bg-white overflow-hidden">
-                <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div class="bg-white overflow-hidden rounded-lg shadow-sm">
+                <div class="px-3 md:px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <h2 class="font-semibold">Exchanges (<%= exchanges.length %>)</h2>
-                    <input type="text" id="exchangeSearch" placeholder="Search exchange..." class="border border-gray-300 rounded px-3 py-1.5 text-[13px] w-48">
+                    <input type="text" id="exchangeSearch" placeholder="Search exchange..." class="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-48">
                 </div>
-                <div class="overflow-auto" style="max-height: calc(100vh - 280px);">
+                <div class="overflow-auto" style="max-height: 50vh; lg:max-height: calc(100vh - 280px);">
                     <table class="w-full border-collapse text-[13px]">
                         <thead class="sticky top-0 bg-gray-50">
                             <tr>
@@ -31,16 +31,16 @@
                                     data-exchange-id="<%= exchange.id %>"
                                     data-search="<%= exchange.id %> <%= exchange.name %>"
                                     onclick="selectExchange('<%= exchange.id %>')">
-                                    <td class="border border-gray-200 px-3 py-2 whitespace-nowrap font-mono text-blue-600"><%= exchange.id %></td>
-                                    <td class="border border-gray-200 px-3 py-2 whitespace-nowrap"><%= exchange.name %></td>
-                                    <td class="border border-gray-200 px-3 py-2 text-center">
+                                    <td class="border border-gray-200 px-3 py-2 md:py-2 whitespace-nowrap font-mono text-blue-600"><%= exchange.id %></td>
+                                    <td class="border border-gray-200 px-3 py-2 md:py-2 whitespace-nowrap"><%= exchange.name %></td>
+                                    <td class="border border-gray-200 px-3 py-2 md:py-2 text-center">
                                         <% if (exchange.has.fetchOHLCV) { %>
                                             <i class="fas fa-check text-green-500"></i>
                                         <% } else { %>
                                             <i class="fas fa-xmark text-gray-300"></i>
                                         <% } %>
                                     </td>
-                                    <td class="border border-gray-200 px-3 py-2 text-center">
+                                    <td class="border border-gray-200 px-3 py-2 md:py-2 text-center">
                                         <% if (exchange.has.createOrder) { %>
                                             <i class="fas fa-check text-green-500"></i>
                                         <% } else { %>
@@ -55,24 +55,24 @@
             </div>
 
             <!-- Markets Table -->
-            <div class="bg-white overflow-hidden">
-                <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <div class="bg-white overflow-hidden rounded-lg shadow-sm">
+                <div class="px-3 md:px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                     <h2 class="font-semibold">
                         Markets
                         <span id="marketsCount" class="text-gray-500 font-normal"></span>
                     </h2>
-                    <div class="flex items-center gap-2">
-                        <select id="typeFilter" class="border border-gray-300 rounded px-3 py-1.5 text-[13px]" onchange="loadMarkets()">
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                        <select id="typeFilter" class="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-auto" onchange="loadMarkets()">
                             <option value="">All Types</option>
                             <option value="spot">Spot</option>
                             <option value="swap">Future (Perp)</option>
                             <option value="future">Future (Dated)</option>
                             <option value="margin">Margin</option>
                         </select>
-                        <input type="text" id="marketSearch" placeholder="Search pair..." class="border border-gray-300 rounded px-3 py-1.5 text-[13px] w-48" oninput="filterMarkets()">
+                        <input type="text" id="marketSearch" placeholder="Search pair..." class="border border-gray-300 rounded px-3 py-2 text-sm w-full sm:w-48" oninput="filterMarkets()">
                     </div>
                 </div>
-                <div class="overflow-auto" style="max-height: calc(100vh - 280px);">
+                <div class="overflow-auto" style="max-height: 50vh; lg:max-height: calc(100vh - 280px);">
                     <table class="w-full border-collapse text-[13px]">
                         <thead class="sticky top-0 bg-gray-50">
                             <tr>

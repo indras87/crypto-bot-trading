@@ -16,6 +16,7 @@ A cryptocurrency trading bot supporting multiple exchanges via [CCXT](https://gi
 - Slack, Telegram and email notification
 - Profile-based bot management with strategy execution
 - CCXT-based exchange support (100+ exchanges)
+- **AI Signal Validation & Strategy Optimization** using Google Gemini
 
 ## Technical stuff and packages
 
@@ -150,6 +151,31 @@ Message
 
 Look for id: -1001118554477 is your chat id (with the negative sign).
 
+## AI Configuration (Google Gemini)
+
+To enable AI signal validation and strategy optimization, you need a Google Gemini API Key (available for free at [Google AI Studio](https://aistudio.google.com/)).
+
+Add the following to your `var/conf.json`:
+
+```json
+{
+  "ai": {
+    "enabled": true,
+    "provider": "gemini",
+    "gemini": {
+      "api_key": "YOUR_GEMINI_API_KEY",
+      "model": "gemini-2.0-flash"
+    },
+    "options": {
+      "min_confidence": 0.7
+    }
+  }
+}
+```
+
+### Features enabled by AI:
+1. **Signal Validation:** In "Trade" or "Watch" mode, signals will be cross-checked by AI before execution.
+2. **Backtest Analysis:** Get expert critique and optimization recommendations after running a backtest.
 
 ## Related Links
 

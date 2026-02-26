@@ -1,14 +1,14 @@
 <!-- Content -->
-<div class="p-4">
+<div class="p-3 md:p-4">
     <div class="max-w-4xl mx-auto">
-        <div class="flex items-center justify-between mb-4">
-            <h1 class="text-2xl font-semibold">Candles</h1>
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">Candles</h1>
             <nav class="text-[13px] text-gray-500">
                 <a href="/" class="text-blue-600 hover:underline">Dashboard</a> / Candles
             </nav>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="bg-white border border-gray-200 rounded">
                 <div class="px-4 py-3 border-b border-gray-200 font-medium">Export</div>
                 <div class="p-4">
@@ -33,7 +33,7 @@
 
                         <div class="flex items-center gap-2">
                             <input type="checkbox" class="rounded border-gray-300" id="metadata" name="metadata" checked>
-                            <label for="metadata">Include Metadata (Exchange, Symbol)</label>
+                            <label for="metadata" class="text-sm">Include Metadata (Exchange, Symbol)</label>
                         </div>
 
                         <div>
@@ -46,7 +46,7 @@
                             <input id="form-end" name="end" type="text" class="w-full border border-gray-300 rounded px-3 py-2" value="<%= formatDate(end, 'Y-m-d H:i') %>">
                         </div>
 
-                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 cursor-pointer">Export</button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">Export</button>
                     </form>
                 </div>
             </div>
@@ -57,10 +57,10 @@
                     <form method="post" class="space-y-4">
                         <div>
                             <label for="json_import" class="block font-medium mb-1">JSON from export</label>
-                            <textarea class="w-full border border-gray-300 rounded px-3 py-2" id="json_import" name="json" rows="5"></textarea>
+                            <textarea class="w-full border border-gray-300 rounded px-3 py-2" id="json_import" name="json" rows="4"></textarea>
                         </div>
 
-                        <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 cursor-pointer">Import</button>
+                        <button type="submit" class="bg-blue-600 text-white px-6 py-2.5 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">Import</button>
                     </form>
                 </div>
             </div>
@@ -72,13 +72,14 @@
                     <h4 class="text-lg font-medium mb-3"><%= exchange %> <%= symbol %> - <%= period %></h4>
 
                     <strong>JSON (<%= candles.length %>)</strong>
-                    <textarea class="w-full border border-gray-300 rounded px-3 py-2 text-[13px] mt-1" style="height: 300px"><%= candles_json %></textarea>
+                    <textarea class="w-full border border-gray-300 rounded px-3 py-2 text-[13px] mt-1" style="height: 200px; min-height: 150px;"><%= candles_json %></textarea>
 
                     <br><br>
 
                     <strong>Overview (<%= candles.length %>)</strong>
 
-                    <table class="w-full border-collapse text-[13px] mt-2">
+                    <div class="overflow-x-auto mt-2">
+                    <table class="w-full border-collapse text-[13px]">
                         <thead>
                         <tr>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Time</th>
@@ -102,6 +103,7 @@
                         <% }); %>
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
         <% } %>

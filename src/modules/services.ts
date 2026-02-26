@@ -72,6 +72,8 @@ import { Trader } from '../strategy/strategies/trader';
 import { Noop as NoopStrategy } from '../strategy/strategies/noop';
 import { Survival } from '../strategy/strategies/survival';
 import { MultiIndicator } from '../strategy/strategies/multi_indicator';
+import { AiPowerSar } from '../strategy/strategies/ai_power_sar';
+import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -617,7 +619,9 @@ const services: Services = {
       Trader,
       NoopStrategy,
       Survival,
-      MultiIndicator
+      MultiIndicator,
+      AiPowerSar,
+      ParabolicSarAi
     ]));
   },
 

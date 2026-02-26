@@ -160,7 +160,7 @@ export class StrategyExecutor {
       // AI Analysis Logic
       if (options.useAi && signal && (signal === 'long' || signal === 'short') && this.aiService && this.aiService.isEnabled()) {
         const lastSignalValue = rows.length > 0 ? rows[rows.length - 1].signal : undefined;
-        
+
         const aiInput: AiAnalysisInput = {
           pair: options.symbol || 'unknown',
           exchange: options.exchange || 'unknown',
@@ -168,19 +168,20 @@ export class StrategyExecutor {
           price: candle.close,
           indicators: signalBuilder.getDebug(),
           lastSignal: lastSignalValue,
-          timeframe: options.period || 'unknown'
+          timeframe: options.period || 'unknown',
+          backtestMode: true
         };
 
         try {
           // Note: In a real backtest with thousands of candles, this will be slow and hit rate limits.
           // We assume short backtests or specific "AI Optimization" runs.
           aiResult = await this.aiService.analyze(aiInput);
-          
+
           if (aiResult && !aiResult.confirmed) {
-             // If AI rejects, we nullify the signal for the strategy logic
-             // But we still record it in the row so the user can see the rejection
-             // However, for the strategy loop state, if we reject 'long', lastSignal remains what it was.
-             signal = undefined; 
+            // If AI rejects, we nullify the signal for the strategy logic
+            // But we still record it in the row so the user can see the rejection
+            // However, for the strategy loop state, if we reject 'long', lastSignal remains what it was.
+            signal = undefined;
           }
         } catch (error) {
           console.error('AI analysis failed during backtest:', error);
@@ -195,7 +196,7 @@ export class StrategyExecutor {
         debug: signalBuilder.getDebug(),
         ai: aiResult // Store AI result
       });
-      
+
       // Update lastSignal for next iteration based on the *effective* signal (filtered by AI)
       // If AI rejected it (signal became undefined), we don't update lastSignal
       const effectiveSignal = aiResult && !aiResult.confirmed ? undefined : signalBuilder.signal;
@@ -270,8 +271,8 @@ export class StrategyExecutor {
     }
 
     const strategy = new StrategyClass(options);
-    
-    // Live trading re-uses execute but without the AI loop inside execute, 
+
+    // Live trading re-uses execute but without the AI loop inside execute,
     // because we handle AI explicitly below for the *latest* signal only.
     const signalRows = await this.execute(strategy, candlesAsc, { useAi: false });
     const lastSignalRow = signalRows[signalRows.length - 1];
@@ -414,7 +415,11 @@ export class TypedBacktestEngine {
    * Process signals into trades and calculate backtest metrics
    * This is backtest-specific logic
    */
-  private processSignals(signalRows: SignalRow[], initialCapital: number, options: any = {}): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
+  private processSignals(
+    signalRows: SignalRow[],
+    initialCapital: number,
+    options: any = {}
+  ): { backtestRows: BacktestRow[]; trades: BacktestTrade[]; summary: BacktestSummary } {
     const backtestRows: BacktestRow[] = [];
     const trades: BacktestTrade[] = [];
 

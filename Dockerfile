@@ -18,4 +18,4 @@ RUN npm run build:prod
 
 EXPOSE 3333
 
-CMD ["node", "dist/index.js", "trade"]
+CMD ["sh", "-c", "[ -f var/config.json ] || echo '{\"webserver\":{\"ip\":\"0.0.0.0\",\"port\":3333}}' > var/config.json && node dist/index.js trade --port=3333"]
