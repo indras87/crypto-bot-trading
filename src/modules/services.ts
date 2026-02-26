@@ -658,26 +658,18 @@ const services: Services = {
       return aiService;
     }
 
-    console.log('[Services Debug] Creating AiService...');
     const cfg = this.getConfig();
     const aiConfig = cfg?.ai as AiServiceConfig | undefined;
 
-    console.log('[Services Debug] getConfig result:', cfg ? 'exists' : 'null');
-    console.log('[Services Debug] aiConfig:', JSON.stringify(aiConfig, null, 2));
-    console.log('[Services Debug] aiConfig?.enabled:', aiConfig?.enabled);
-
     if (!aiConfig?.enabled) {
-      console.log('[Services Debug] AI disabled or not configured, returning NoopAiService');
       return (aiService = new NoopAiService());
     }
 
     if (aiConfig.provider === 'gemini' && aiConfig.gemini?.api_key) {
-      console.log('[Services Debug] Creating GeminiProvider...');
       const minConfidence = aiConfig.options?.min_confidence || 0.7;
       return (aiService = new GeminiProvider(aiConfig.gemini.api_key, aiConfig.gemini.model || 'gemini-2.0-flash', this.getLogger(), minConfidence));
     }
 
-    console.log('[Services Debug] Provider not gemini or no API key, returning NoopAiService');
     return (aiService = new NoopAiService());
   },
 
@@ -686,12 +678,7 @@ const services: Services = {
       return aiStatusService;
     }
 
-    console.log('[Services Debug] Creating AiStatusService...');
-    const config = this.getSystemUtil();
-    const aiConfig = config.getConfig('ai', null);
-    console.log('[Services Debug] AI config from getSystemUtil:', JSON.stringify(aiConfig, null, 2));
-
-    return (aiStatusService = new AiStatusService(config, this.getAiService()));
+    return (aiStatusService = new AiStatusService(this.getSystemUtil(), this.getAiService()));
   }
 };
 

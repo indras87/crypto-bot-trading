@@ -14,13 +14,7 @@ export class GeminiProvider implements AiService {
     private logger: Logger,
     private minConfidence: number = 0.7
   ) {
-    console.log('[GeminiProvider Debug] Constructor called');
-    console.log('[GeminiProvider Debug] API key present:', !!apiKey);
-    console.log('[GeminiProvider Debug] API key length:', apiKey?.length || 0);
-    console.log('[GeminiProvider Debug] Model:', model);
-
     this.enabled = !!apiKey && apiKey.length > 0;
-    console.log('[GeminiProvider Debug] Enabled:', this.enabled);
 
     if (this.enabled) {
       this.genAI = new GoogleGenerativeAI(apiKey);
