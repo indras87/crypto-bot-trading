@@ -53,6 +53,11 @@ export class AiStatusService {
   getStatusDetail(): AiStatusDetail {
     const aiConfig = this.configService.getConfig('ai', null);
 
+    // Debug logging
+    console.log('[AI Status Debug] Raw aiConfig:', JSON.stringify(aiConfig, null, 2));
+    console.log('[AI Status Debug] aiService exists:', !!this.aiService);
+    console.log('[AI Status Debug] aiService.isEnabled():', this.aiService?.isEnabled());
+
     const isConfigured = this.checkIsConfigured(aiConfig);
     const isEnabled = aiConfig?.enabled === true;
     const provider = aiConfig?.provider || null;
@@ -197,13 +202,28 @@ export class AiStatusService {
    * Check if AI is properly configured
    */
   private checkIsConfigured(aiConfig: any): boolean {
-    if (!aiConfig) return false;
-    if (!aiConfig.provider) return false;
+    console.log('[AI Status Debug] checkIsConfigured called with:', aiConfig ? 'object' : 'null/undefined');
 
-    if (aiConfig.provider === 'gemini') {
-      return !!(aiConfig.gemini?.api_key);
+    if (!aiConfig) {
+      console.log('[AI Status Debug] aiConfig is null/undefined');
+      return false;
+    }
+    if (!aiConfig.provider) {
+      console.log('[AI Status Debug] aiConfig.provider is missing');
+      return false;
     }
 
+    console.log('[AI Status Debug] Provider:', aiConfig.provider);
+    console.log('[AI Status Debug] Gemini config:', aiConfig.gemini ? 'exists' : 'missing');
+    console.log('[AI Status Debug] API key present:', aiConfig.gemini?.api_key ? 'yes' : 'no');
+
+    if (aiConfig.provider === 'gemini') {
+      const hasKey = !!(aiConfig.gemini?.api_key);
+      console.log('[AI Status Debug] Gemini has API key:', hasKey);
+      return hasKey;
+    }
+
+    console.log('[AI Status Debug] Unknown provider:', aiConfig.provider);
     return false;
   }
 }
