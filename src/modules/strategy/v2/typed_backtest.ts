@@ -13,6 +13,7 @@ import type { CcxtCandleWatchService } from '../../system/ccxt_candle_watch_serv
 import type { CcxtCandlePrefillService } from '../../system/ccxt_candle_prefill_service';
 import type { StrategyRegistry } from './strategy_registry';
 import type { AiService } from '../../../ai/ai_service';
+import type { AiStatusService } from '../../../ai/ai_status_service';
 import type { AiAnalysisInput, AiAnalysisResult } from '../../../ai/types';
 
 // ============== Core Signal Types (reusable for trading) ==============
@@ -101,8 +102,9 @@ export class StrategyExecutor {
     private ccxtCandleWatchService: CcxtCandleWatchService,
     private ccxtCandlePrefillService: CcxtCandlePrefillService,
     private strategyRegistry: StrategyRegistry,
-    private aiService?: AiService
-  ) {}
+    private aiService?: AiService,
+    private aiStatusService?: AiStatusService
+  ) { }
 
   /**
    * Execute strategy on candles and return raw signals
@@ -301,13 +303,20 @@ export class StrategyExecutor {
 
         if (!aiResult.confirmed) {
           this.logger.info(`[StrategyExecutor] AI rejected ${signal} signal for ${symbol} - action: ${aiResult.action}`);
+          this.aiStatusService?.recordValidation(false);
           signal = undefined;
         } else {
           this.logger.info(`[StrategyExecutor] AI confirmed ${signal} signal for ${symbol}`);
+          this.aiStatusService?.recordValidation(true);
         }
       } catch (e: any) {
         this.logger.error(`[StrategyExecutor] AI analysis failed: ${e.message} - proceeding with original signal`);
+        this.aiStatusService?.recordValidation(false, e.message);
       }
+    } else if (signal && this.aiStatusService) {
+      // Log AI status when AI is not enabled
+      const aiStatusSummary = this.aiStatusService.getStatusSummary();
+      this.logger.debug(`[StrategyExecutor] ${aiStatusSummary}`);
     }
 
     return signal;
@@ -320,7 +329,7 @@ export class TypedBacktestEngine {
   constructor(
     private exchangeCandleCombine: ExchangeCandleCombine,
     private executor: StrategyExecutor
-  ) {}
+  ) { }
 
   /**
    * Run a backtest with pre-fetched candles

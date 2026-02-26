@@ -77,6 +77,7 @@ import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
+import { AiStatusService } from '../ai/ai_status_service';
 import type { AiServiceConfig } from '../ai/types';
 
 // Interfaces
@@ -155,6 +156,7 @@ let botRunner: BotRunner;
 let exchangeInstanceService: ExchangeInstanceService;
 let binancePriceService: BinancePriceService;
 let aiService: AiService;
+let aiStatusService: AiStatusService;
 
 const parameters: Parameters = {
   projectDir: ''
@@ -178,6 +180,7 @@ export interface Services {
   getLogsHttp(): LogsHttp;
   getTickerLogRepository(): TickerLogRepository;
   getTickerRepository(): TickerRepository;
+  getAiStatusService(): AiStatusService;
   getQueue(): QueueManager;
   getCandleExportHttp(): CandleExportHttp;
   getExchangeCandleCombine(): ExchangeCandleCombine;
@@ -350,7 +353,8 @@ const services: Services = {
       this.getCcxtCandleWatchService(),
       this.getCcxtCandlePrefillService(),
       this.getV2StrategyRegistry(),
-      this.getAiService()
+      this.getAiService(),
+      this.getAiStatusService()
     ));
   },
 
@@ -466,7 +470,7 @@ const services: Services = {
 
   // Controller factory methods
   getDashboardController: function (templateHelpers: any): DashboardController {
-    return new DashboardController(templateHelpers, this.getTa(), this.getDashboardConfigService());
+    return new DashboardController(templateHelpers, this.getTa(), this.getDashboardConfigService(), this.getAiStatusService());
   },
 
   getDashboardSettingsController: function (templateHelpers: any): DashboardSettingsController {
@@ -667,6 +671,14 @@ const services: Services = {
     }
 
     return (aiService = new NoopAiService());
+  },
+
+  getAiStatusService: function (): AiStatusService {
+    if (aiStatusService) {
+      return aiStatusService;
+    }
+
+    return (aiStatusService = new AiStatusService(this.getSystemUtil(), this.getAiService()));
   }
 };
 

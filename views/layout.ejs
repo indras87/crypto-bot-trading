@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <title><%= typeof title !== 'undefined' ? title : 'Dashboard | Crypto Bot' %></title>
+    <title>
+        <%= typeof title !=='undefined' ? title : 'Dashboard | Crypto Bot' %>
+    </title>
 
-    <link rel="icon" href="/favicon.ico"/>
+    <link rel="icon" href="/favicon.ico" />
 
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css">
@@ -20,157 +23,240 @@
     <!-- Slim Select auto-init -->
     <script src="/js/slim-select.js" defer></script>
 
-    <%- typeof stylesheet !== 'undefined' ? stylesheet : '' %>
-    <%- typeof head !== 'undefined' ? head : '' %>
+    <%- typeof stylesheet !=='undefined' ? stylesheet : '' %>
+        <%- typeof head !=='undefined' ? head : '' %>
 </head>
+
 <body class="bg-gray-100 text-gray-800 text-sm">
-<div class="min-h-screen flex flex-col">
-    <!-- Navbar -->
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div class="max-w-[1800px] mx-auto px-3 md:px-4 flex items-center h-14">
-            <a href="/" class="flex items-center gap-2 mr-4 md:mr-8 shrink-0">
-                <img src="/img/bitcoin.svg" alt="Crypto Trading Bot Logo" class="w-7 h-7 md:w-8 md:h-8 rounded-full shadow-sm">
-                <span class="text-base md:text-lg font-light hidden sm:inline">Crypto-Bot</span>
-            </a>
+    <div class="min-h-screen flex flex-col">
+        <!-- Navbar -->
+        <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+            <div class="max-w-[1800px] mx-auto px-3 md:px-4 flex items-center h-14">
+                <a href="/" class="flex items-center gap-2 mr-4 md:mr-8 shrink-0">
+                    <img src="/img/bitcoin.svg" alt="Crypto Trading Bot Logo"
+                        class="w-7 h-7 md:w-8 md:h-8 rounded-full shadow-sm">
+                    <span class="text-base md:text-lg font-light hidden sm:inline">Crypto-Bot</span>
+                </a>
 
-            <!-- Mobile Menu Button -->
-            <button id="mobile-menu-btn" class="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded cursor-pointer" aria-label="Toggle menu">
-                <i class="fas fa-bars text-lg"></i>
-            </button>
+                <!-- Mobile Menu Button -->
+                <button id="mobile-menu-btn"
+                    class="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded cursor-pointer"
+                    aria-label="Toggle menu">
+                    <i class="fas fa-bars text-lg"></i>
+                </button>
 
-            <!-- Desktop Navigation -->
-            <div id="nav-links" class="hidden md:flex items-center gap-1 flex-1 overflow-x-auto">
-                <a href="/" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Dashboard</a>
-                <a href="/trades" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'trades' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Trades</a>
-                <a href="/orders" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'orders' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Orders</a>
-                <a href="/signals" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'signals' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Signals</a>
-                <a href="/tools/candles" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'candles' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Candles</a>
-                <a href="/tools/ccxt-exchanges" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">CCXT</a>
-                <a href="/backtest" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Backtest</a>
-                <a href="/logs" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Logs</a>
-                <a href="/settings" class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>"><i class="fas fa-cog text-xs"></i> <span class="hidden lg:inline">Settings</span></a>
-
-                <div class="relative group">
-                    <button class="px-3 py-1.5 rounded text-sm text-gray-600 hover:bg-gray-100 flex items-center gap-1 cursor-pointer">
-                        Desks <i class="fas fa-caret-down text-xs"></i>
-                    </button>
-                    <div class="hidden group-hover:block absolute left-0 top-full bg-white border border-gray-200 rounded shadow-lg min-w-48 z-50 py-1">
-                        <a href="/desk" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                            <i class="fas fa-cog text-gray-400"></i> &nbsp; Settings
-                        </a>
-                        <% if (typeof desks !== 'undefined' && desks.length > 0) { %>
-                            <div class="border-t border-gray-200 my-1"></div>
-                            <% desks.forEach(function(desk, index) { %>
-                                <a href="/desks/<%= index %>" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"><%= desk %></a>
-                            <% }); %>
-                            <div class="border-t border-gray-200 my-1"></div>
-                            <% desks.forEach(function(desk, index) { %>
-                                <a href="/desks/<%= index %>/fullscreen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
-                                    <i class="fas fa-expand text-gray-400 text-xs"></i> &nbsp; <%= desk %>
-                                </a>
-                            <% }); %>
+                <!-- Desktop Navigation -->
+                <div id="nav-links" class="hidden md:flex items-center gap-1 flex-1 overflow-x-auto">
+                    <!-- AI Status Indicator -->
+                    <% if (typeof aiStatus !=='undefined' && aiStatus) { %>
+                        <div class="flex items-center gap-2 mr-3" title="<%= aiStatus.description %>">
+                            <span
+                                class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium <%= aiStatus.cssClass %>">
+                                <i class="fas <%= aiStatus.icon %>"></i>
+                                <span class="hidden lg:inline">
+                                    <%= aiStatus.label %>
+                                </span>
+                                <% if (aiStatus.provider) { %>
+                                    <span class="text-[10px] opacity-75">(<%= aiStatus.provider %>)</span>
+                                    <% } %>
+                            </span>
+                            <% if (aiStatus.signalsValidated> 0) { %>
+                                <span class="text-[10px] text-gray-400 hidden xl:inline"
+                                    title="Validated: <%= aiStatus.signalsValidated %>, Accepted: <%= aiStatus.signalsAccepted %>, Rejected: <%= aiStatus.signalsRejected %>">
+                                    <%= aiStatus.signalsValidated %> signals
+                                </span>
+                                <% } %>
+                        </div>
                         <% } %>
-                    </div>
+
+                            <a href="/"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Dashboard</a>
+                            <a href="/trades"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'trades' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Trades</a>
+                            <a href="/orders"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'orders' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Orders</a>
+                            <a href="/signals"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'signals' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Signals</a>
+                            <a href="/tools/candles"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'candles' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Candles</a>
+                            <a href="/tools/ccxt-exchanges"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">CCXT</a>
+                            <a href="/backtest"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Backtest</a>
+                            <a href="/logs"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Logs</a>
+                            <a href="/settings"
+                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>"><i
+                                    class="fas fa-cog text-xs"></i> <span class="hidden lg:inline">Settings</span></a>
+
+                            <div class="relative group">
+                                <button
+                                    class="px-3 py-1.5 rounded text-sm text-gray-600 hover:bg-gray-100 flex items-center gap-1 cursor-pointer">
+                                    Desks <i class="fas fa-caret-down text-xs"></i>
+                                </button>
+                                <div
+                                    class="hidden group-hover:block absolute left-0 top-full bg-white border border-gray-200 rounded shadow-lg min-w-48 z-50 py-1">
+                                    <a href="/desk" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
+                                        <i class="fas fa-cog text-gray-400"></i> &nbsp; Settings
+                                    </a>
+                                    <% if (typeof desks !=='undefined' && desks.length> 0) { %>
+                                        <div class="border-t border-gray-200 my-1"></div>
+                                        <% desks.forEach(function(desk, index) { %>
+                                            <a href="/desks/<%= index %>"
+                                                class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                                <%= desk %>
+                                            </a>
+                                            <% }); %>
+                                                <div class="border-t border-gray-200 my-1"></div>
+                                                <% desks.forEach(function(desk, index) { %>
+                                                    <a href="/desks/<%= index %>/fullscreen"
+                                                        class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                                        <i class="fas fa-expand text-gray-400 text-xs"></i> &nbsp; <%=
+                                                            desk %>
+                                                    </a>
+                                                    <% }); %>
+                                                        <% } %>
+                                </div>
+                            </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Mobile Navigation Dropdown -->
-        <div id="mobile-nav" class="hidden md:hidden border-t border-gray-200 bg-white">
-            <div class="p-3 space-y-1 max-h-[70vh] overflow-y-auto">
-                <a href="/" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-th-large w-5"></i> Dashboard
-                </a>
-                <a href="/trades" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'trades' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-exchange-alt w-5"></i> Trades
-                </a>
-                <a href="/orders" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'orders' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-list w-5"></i> Orders
-                </a>
-                <a href="/signals" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'signals' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-signal w-5"></i> Signals
-                </a>
-                <a href="/tools/candles" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'candles' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-chart-candle-stick w-5"></i> Candles
-                </a>
-                <a href="/tools/ccxt-exchanges" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-exchange w-5"></i> CCXT
-                </a>
-                <a href="/backtest" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-flask w-5"></i> Backtest
-                </a>
-                <a href="/logs" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-file-alt w-5"></i> Logs
-                </a>
-                <a href="/settings" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                    <i class="fas fa-cog w-5"></i> Settings
-                </a>
-                
-                <div class="border-t border-gray-200 my-2 pt-2">
-                    <div class="px-3 py-1 text-xs text-gray-400 uppercase tracking-wide">Desks</div>
-                    <a href="/desk" class="block px-3 py-2 rounded text-sm text-gray-600 hover:bg-gray-100">
-                        <i class="fas fa-cog w-5"></i> Settings
-                    </a>
-                    <% if (typeof desks !== 'undefined' && desks.length > 0) { %>
-                        <% desks.forEach(function(desk, index) { %>
-                            <a href="/desks/<%= index %>" class="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-100 pl-8"><%= desk %></a>
-                            <a href="/desks/<%= index %>/fullscreen" class="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-100 pl-8">
-                                <i class="fas fa-expand w-4"></i> <%= desk %> (Full)
+            <!-- Mobile Navigation Dropdown -->
+            <div id="mobile-nav" class="hidden md:hidden border-t border-gray-200 bg-white">
+                <div class="p-3 space-y-1 max-h-[70vh] overflow-y-auto">
+                    <!-- AI Status Indicator for Mobile -->
+                    <% if (typeof aiStatus !=='undefined' && aiStatus) { %>
+                        <div class="px-3 py-2 border-b border-gray-100 mb-2">
+                            <div class="flex items-center gap-2">
+                                <span
+                                    class="flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium <%= aiStatus.cssClass %>">
+                                    <i class="fas <%= aiStatus.icon %>"></i>
+                                    <%= aiStatus.label %>
+                                </span>
+                                <% if (aiStatus.provider) { %>
+                                    <span class="text-xs text-gray-500">
+                                        <%= aiStatus.provider %>
+                                    </span>
+                                    <% } %>
+                            </div>
+                            <% if (aiStatus.signalsValidated> 0) { %>
+                                <div class="text-xs text-gray-400 mt-1">
+                                    <%= aiStatus.signalsValidated %> signals (<%= aiStatus.signalsAccepted %> acc, <%=
+                                                aiStatus.signalsRejected %> rej)
+                                </div>
+                                <% } %>
+                        </div>
+                        <% } %>
+
+                            <a href="/"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'dashboard' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-th-large w-5"></i> Dashboard
                             </a>
-                        <% }); %>
-                    <% } %>
+                            <a href="/trades"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'trades' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-exchange-alt w-5"></i> Trades
+                            </a>
+                            <a href="/orders"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'orders' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-list w-5"></i> Orders
+                            </a>
+                            <a href="/signals"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'signals' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-signal w-5"></i> Signals
+                            </a>
+                            <a href="/tools/candles"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'candles' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-chart-candle-stick w-5"></i> Candles
+                            </a>
+                            <a href="/tools/ccxt-exchanges"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-exchange w-5"></i> CCXT
+                            </a>
+                            <a href="/backtest"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-flask w-5"></i> Backtest
+                            </a>
+                            <a href="/logs"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-file-alt w-5"></i> Logs
+                            </a>
+                            <a href="/settings"
+                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'settings' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
+                                <i class="fas fa-cog w-5"></i> Settings
+                            </a>
+
+                            <div class="border-t border-gray-200 my-2 pt-2">
+                                <div class="px-3 py-1 text-xs text-gray-400 uppercase tracking-wide">Desks</div>
+                                <a href="/desk" class="block px-3 py-2 rounded text-sm text-gray-600 hover:bg-gray-100">
+                                    <i class="fas fa-cog w-5"></i> Settings
+                                </a>
+                                <% if (typeof desks !=='undefined' && desks.length> 0) { %>
+                                    <% desks.forEach(function(desk, index) { %>
+                                        <a href="/desks/<%= index %>"
+                                            class="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-100 pl-8">
+                                            <%= desk %>
+                                        </a>
+                                        <a href="/desks/<%= index %>/fullscreen"
+                                            class="block px-3 py-2 rounded text-sm text-gray-700 hover:bg-gray-100 pl-8">
+                                            <i class="fas fa-expand w-4"></i>
+                                            <%= desk %> (Full)
+                                        </a>
+                                        <% }); %>
+                                            <% } %>
+                            </div>
                 </div>
             </div>
-        </div>
-    </nav>
+        </nav>
 
-    <!-- Content -->
-    <main class="flex-1">
-        <%- body %>
-    </main>
+        <!-- Content -->
+        <main class="flex-1">
+            <%- body %>
+        </main>
 
-    <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 px-3 md:px-4 py-3 text-xs text-gray-500">
-        <div class="max-w-[1800px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-            <div class="text-center sm:text-left">
-                Copyright &copy; 2018-<%= new Date().getFullYear() %> <a href="https://github.com/Haehnchen" class="text-blue-600 hover:underline">Haehnchen</a>
-                - All rights reserved - Node.js <%= nodeVersion %> - Memory <%= memoryUsage %> MB
+        <!-- Footer -->
+        <footer class="bg-white border-t border-gray-200 px-3 md:px-4 py-3 text-xs text-gray-500">
+            <div class="max-w-[1800px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div class="text-center sm:text-left">
+                    Copyright &copy; 2018-<%= new Date().getFullYear() %> <a href="https://github.com/Haehnchen"
+                            class="text-blue-600 hover:underline">Haehnchen</a>
+                        - All rights reserved - Node.js <%= nodeVersion %> - Memory <%= memoryUsage %> MB
+                </div>
+                <div class="text-gray-400">1.0.0</div>
             </div>
-            <div class="text-gray-400">1.0.0</div>
-        </div>
-    </footer>
-</div>
+        </footer>
+    </div>
 
-<%- typeof javascript !== 'undefined' ? javascript : '' %>
-<%- script %>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    var mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    var mobileNav = document.getElementById('mobile-nav');
-    
-    if (mobileMenuBtn && mobileNav) {
-        mobileMenuBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            mobileNav.classList.toggle('hidden');
-            var icon = mobileMenuBtn.querySelector('i');
-            if (icon) {
-                icon.classList.toggle('fa-bars');
-                icon.classList.toggle('fa-times');
-            }
-        });
-        
-        document.addEventListener('click', function(e) {
-            if (!mobileNav.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
-                mobileNav.classList.add('hidden');
-                var icon = mobileMenuBtn.querySelector('i');
-                if (icon) {
-                    icon.classList.add('fa-bars');
-                    icon.classList.remove('fa-times');
-                }
-            }
-        });
-    }
-});
-</script>
+    <%- typeof javascript !=='undefined' ? javascript : '' %>
+        <%- script %>
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    var mobileMenuBtn = document.getElementById('mobile-menu-btn');
+                    var mobileNav = document.getElementById('mobile-nav');
+
+                    if (mobileMenuBtn && mobileNav) {
+                        mobileMenuBtn.addEventListener('click', function (e) {
+                            e.stopPropagation();
+                            mobileNav.classList.toggle('hidden');
+                            var icon = mobileMenuBtn.querySelector('i');
+                            if (icon) {
+                                icon.classList.toggle('fa-bars');
+                                icon.classList.toggle('fa-times');
+                            }
+                        });
+
+                        document.addEventListener('click', function (e) {
+                            if (!mobileNav.contains(e.target) && !mobileMenuBtn.contains(e.target)) {
+                                mobileNav.classList.add('hidden');
+                                var icon = mobileMenuBtn.querySelector('i');
+                                if (icon) {
+                                    icon.classList.add('fa-bars');
+                                    icon.classList.remove('fa-times');
+                                }
+                            }
+                        });
+                    }
+                });
+            </script>
 </body>
+
 </html>
