@@ -12,8 +12,8 @@ services:
       - ./var:/usr/src/app/var
     restart: unless-stopped
     networks:
-      - ppsi_network
+      - crypto_network
 
 networks:
-  ppsi_network:
-    external: true
+  crypto_network:
+    driver: bridge
