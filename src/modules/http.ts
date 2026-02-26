@@ -49,21 +49,38 @@ export class Http {
         // Check if date is valid
         if (isNaN(d.getTime())) return '';
 
+        const jakartaOptions: Intl.DateTimeFormatOptions = {
+          timeZone: 'Asia/Jakarta',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        };
+
         if (format === 'Y-m-d H:i') {
-          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(
-            2,
-            '0'
-          )}:${String(d.getMinutes()).padStart(2, '0')}`;
+          return d
+            .toLocaleString('id-ID', {
+              ...jakartaOptions,
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+            .replace(',', '');
         } else if (format === 'y-m-d H:i:s') {
-          return `${String(d.getFullYear()).slice(-2)}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(
-            d.getHours()
-          ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+          return d
+            .toLocaleString('id-ID', {
+              ...jakartaOptions,
+              second: '2-digit'
+            })
+            .replace(',', '');
         } else if (format === 'd.m.y H:i') {
-          return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getFullYear()).slice(-2)} ${String(
-            d.getHours()
-          ).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          return d.toLocaleString('id-ID', jakartaOptions).replace(',', '');
         }
-        return d.toISOString();
+        return d.toLocaleString('id-ID', jakartaOptions).replace(',', '');
       },
       escapeHtml: (text: any): string => {
         if (typeof text !== 'string') return text;

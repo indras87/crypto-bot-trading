@@ -561,7 +561,7 @@ function formatAmount(num) {
 
 function formatDate(timestamp) {
     if (!timestamp) return '-';
-    return new Date(timestamp).toLocaleString();
+    return new Date(timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' });
 }
 
 function getStatusBadge(status) {
