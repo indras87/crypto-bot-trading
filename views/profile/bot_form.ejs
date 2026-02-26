@@ -49,10 +49,13 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Interval</label>
                     <select name="interval" required class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
                         <option value="1m" <%= bot && bot.interval === '1m' ? 'selected' : '' %>>1 minute</option>
+                        <option value="3m" <%= bot && bot.interval === '3m' ? 'selected' : '' %>>3 minutes</option>
                         <option value="5m" <%= bot && bot.interval === '5m' ? 'selected' : '' %>>5 minutes</option>
                         <option value="15m" <%= !bot || bot.interval === '15m' ? 'selected' : '' %>>15 minutes</option>
+                        <option value="30m" <%= bot && bot.interval === '30m' ? 'selected' : '' %>>30 minutes</option>
                         <option value="1h" <%= bot && bot.interval === '1h' ? 'selected' : '' %>>1 hour</option>
                         <option value="4h" <%= bot && bot.interval === '4h' ? 'selected' : '' %>>4 hours</option>
+                        <option value="1d" <%= bot && bot.interval === '1d' ? 'selected' : '' %>>1 day</option>
                     </select>
                 </div>
 
