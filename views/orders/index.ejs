@@ -68,10 +68,10 @@
         <span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs">Spot</span>
     <% } else if (type === 'margin') { %>
         <span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs">Margin</span>
-    <% } else if (type === 'swap') { %>
-        <span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">Swap</span>
-    <% } else if (type === 'future') { %>
-        <span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Future</span>
+    <% } else if (type === 'swap' || type === 'future_perp') { %>
+        <span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs">Future (Perp)</span>
+    <% } else if (type === 'future' || type === 'future_dated') { %>
+        <span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Future (Dated)</span>
     <% } else { %>
         <span class="text-gray-400">-</span>
     <% } %>

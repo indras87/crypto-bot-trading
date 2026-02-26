@@ -13,7 +13,7 @@ import type { CcxtCandleWatchService } from '../../system/ccxt_candle_watch_serv
 import type { CcxtCandlePrefillService } from '../../system/ccxt_candle_prefill_service';
 import type { StrategyRegistry } from './strategy_registry';
 import type { AiService } from '../../../ai/ai_service';
-import type { AiAnalysisInput } from '../../../ai/types';
+import type { AiAnalysisInput, AiAnalysisResult } from '../../../ai/types';
 
 // ============== Core Signal Types (reusable for trading) ==============
 
@@ -25,6 +25,7 @@ export interface SignalRow {
   price: number;
   signal?: 'long' | 'short' | 'close';
   debug: Record<string, any>;
+  ai?: AiAnalysisResult;
 }
 
 // ============== Backtest-specific Types ==============
@@ -34,6 +35,7 @@ export interface BacktestConfig {
   symbol: string;
   period: Period;
   initialCapital: number;
+  useAi?: boolean;
 }
 
 export interface BacktestConfigWithHours extends BacktestConfig {
@@ -48,6 +50,7 @@ export interface BacktestTrade {
   side: 'long' | 'short';
   profitPercent: number;
   profitAbsolute: number;
+  aiConfirmation?: AiAnalysisResult;
 }
 
 export interface BacktestSummary {
@@ -68,6 +71,7 @@ export interface BacktestRow extends SignalRow {
 
 export interface BacktestResult {
   strategyName: string;
+  strategyOptions?: Record<string, any>;
   symbol: string;
   exchange: string;
   period: string;
@@ -78,6 +82,13 @@ export interface BacktestResult {
   rows: BacktestRow[];
   indicatorKeys: string[];
   candlesAsc: Candlestick[];
+}
+
+interface ExecuteOptions {
+  useAi?: boolean;
+  exchange?: string;
+  symbol?: string;
+  period?: string;
 }
 
 // ============== Core Strategy Executor (reusable for trading) ==============
@@ -99,7 +110,8 @@ export class StrategyExecutor {
    */
   async execute<TIndicators extends Record<string, TypedIndicatorDefinition>>(
     strategyInstance: TypedStrategy<TIndicators>,
-    candlesAsc: Candlestick[]
+    candlesAsc: Candlestick[],
+    options: ExecuteOptions = {}
   ): Promise<SignalRow[]> {
     // Validate candles are in ascending order (oldest first)
     if (candlesAsc.length >= 2 && candlesAsc[0].time > candlesAsc[1].time) {
@@ -120,7 +132,8 @@ export class StrategyExecutor {
     // Track lastSignal internally - piped through each iteration
     let lastSignal: 'long' | 'short' | 'close' | undefined = undefined;
 
-    for (const entry of combined) {
+    for (let i = 0; i < combined.length; i++) {
+      const entry = combined[i];
       const { candle, indicators: indicatorValues } = entry;
 
       // Push current values into accumulated arrays
@@ -141,22 +154,57 @@ export class StrategyExecutor {
         continue;
       }
 
-      const signal = signalBuilder.signal;
+      let signal = signalBuilder.signal;
+      let aiResult: AiAnalysisResult | undefined;
+
+      // AI Analysis Logic
+      if (options.useAi && signal && (signal === 'long' || signal === 'short') && this.aiService && this.aiService.isEnabled()) {
+        const lastSignalValue = rows.length > 0 ? rows[rows.length - 1].signal : undefined;
+        
+        const aiInput: AiAnalysisInput = {
+          pair: options.symbol || 'unknown',
+          exchange: options.exchange || 'unknown',
+          signal: signal,
+          price: candle.close,
+          indicators: signalBuilder.getDebug(),
+          lastSignal: lastSignalValue,
+          timeframe: options.period || 'unknown'
+        };
+
+        try {
+          // Note: In a real backtest with thousands of candles, this will be slow and hit rate limits.
+          // We assume short backtests or specific "AI Optimization" runs.
+          aiResult = await this.aiService.analyze(aiInput);
+          
+          if (aiResult && !aiResult.confirmed) {
+             // If AI rejects, we nullify the signal for the strategy logic
+             // But we still record it in the row so the user can see the rejection
+             // However, for the strategy loop state, if we reject 'long', lastSignal remains what it was.
+             signal = undefined; 
+          }
+        } catch (error) {
+          console.error('AI analysis failed during backtest:', error);
+        }
+      }
 
       // Record signal row
       rows.push({
         time: candle.time,
         price: candle.close,
-        signal,
-        debug: signalBuilder.getDebug()
+        signal: signalBuilder.signal, // Store original signal in row
+        debug: signalBuilder.getDebug(),
+        ai: aiResult // Store AI result
       });
+      
+      // Update lastSignal for next iteration based on the *effective* signal (filtered by AI)
+      // If AI rejected it (signal became undefined), we don't update lastSignal
+      const effectiveSignal = aiResult && !aiResult.confirmed ? undefined : signalBuilder.signal;
 
-      // Update lastSignal for next iteration
       // 'close' clears position state — strategies only see 'long', 'short', or undefined
-      if (signal === 'close') {
+      if (effectiveSignal === 'close') {
         lastSignal = undefined;
-      } else if (signal) {
-        lastSignal = signal;
+      } else if (effectiveSignal) {
+        lastSignal = effectiveSignal;
       }
     }
 
@@ -222,7 +270,10 @@ export class StrategyExecutor {
     }
 
     const strategy = new StrategyClass(options);
-    const signalRows = await this.execute(strategy, candlesAsc);
+    
+    // Live trading re-uses execute but without the AI loop inside execute, 
+    // because we handle AI explicitly below for the *latest* signal only.
+    const signalRows = await this.execute(strategy, candlesAsc, { useAi: false });
     const lastSignalRow = signalRows[signalRows.length - 1];
     let signal = lastSignalRow?.signal;
 
@@ -284,10 +335,15 @@ export class TypedBacktestEngine {
       throw new Error('Candles must be in ascending order (oldest first). Received descending order.');
     }
 
-    const { exchange, symbol, period, initialCapital } = config;
+    const { exchange, symbol, period, initialCapital, useAi } = config;
 
     // Execute strategy to get signals
-    const signalRows = await this.executor.execute(strategyInstance, candlesAsc);
+    const signalRows = await this.executor.execute(strategyInstance, candlesAsc, {
+      useAi,
+      exchange,
+      symbol,
+      period
+    });
 
     // Process signals into trades and calculate profits
     const { backtestRows, trades, summary } = this.processSignals(signalRows, initialCapital);
@@ -301,9 +357,11 @@ export class TypedBacktestEngine {
 
     // Get strategy name from constructor name
     const strategyName = strategyInstance.constructor?.name || 'unknown';
+    const strategyOptions = strategyInstance.getOptions?.() || {};
 
     return {
       strategyName,
+      strategyOptions,
       symbol,
       exchange,
       period,
@@ -324,7 +382,7 @@ export class TypedBacktestEngine {
     strategyInstance: TypedStrategy<TIndicators>,
     config: BacktestConfigWithHours
   ): Promise<BacktestResult> {
-    const { exchange, symbol, period, hours, initialCapital } = config;
+    const { exchange, symbol, period, hours, initialCapital, useAi } = config;
 
     // Calculate time range
     const endTime = Math.floor(Date.now() / 1000);
@@ -347,7 +405,8 @@ export class TypedBacktestEngine {
       exchange,
       symbol,
       period,
-      initialCapital
+      initialCapital,
+      useAi
     });
   }
 
@@ -359,12 +418,24 @@ export class TypedBacktestEngine {
     const backtestRows: BacktestRow[] = [];
     const trades: BacktestTrade[] = [];
 
-    let currentPosition: { side: 'long' | 'short'; entryPrice: number; entryTime: number } | null = null;
+    let currentPosition: { side: 'long' | 'short'; entryPrice: number; entryTime: number; aiConfirmation?: AiAnalysisResult } | null = null;
     let capital = initialCapital;
     let peakCapital = initialCapital;
     let maxDrawdown = 0;
 
     for (const row of signalRows) {
+      // Logic handling for AI Rejection
+      // If AI rejected the signal (row.ai.confirmed == false), the effective signal was undefined in the executor loop
+      // But here we see the raw signal in 'row.signal'.
+      // We need to know if we should act on it.
+      // The executor loop used `effectiveSignal` to maintain state.
+      // Here we need to replicate that logic or rely on the fact that if AI rejected, we shouldn't open.
+      
+      let effectiveSignal = row.signal;
+      if (row.ai && !row.ai.confirmed) {
+        effectiveSignal = undefined; // Treat as no signal for trading logic
+      }
+
       // Calculate current profit
       let profitPercent: number | undefined;
       if (currentPosition) {
@@ -393,11 +464,11 @@ export class TypedBacktestEngine {
       });
 
       // Process signal into trade
-      if (row.signal === 'long' && !currentPosition) {
-        currentPosition = { side: 'long', entryPrice: row.price, entryTime: row.time };
-      } else if (row.signal === 'short' && !currentPosition) {
-        currentPosition = { side: 'short', entryPrice: row.price, entryTime: row.time };
-      } else if (row.signal === 'close' && currentPosition) {
+      if (effectiveSignal === 'long' && !currentPosition) {
+        currentPosition = { side: 'long', entryPrice: row.price, entryTime: row.time, aiConfirmation: row.ai };
+      } else if (effectiveSignal === 'short' && !currentPosition) {
+        currentPosition = { side: 'short', entryPrice: row.price, entryTime: row.time, aiConfirmation: row.ai };
+      } else if (effectiveSignal === 'close' && currentPosition) {
         const tradeProfit = profitPercent!;
 
         trades.push({
@@ -407,7 +478,8 @@ export class TypedBacktestEngine {
           exitPrice: row.price,
           side: currentPosition.side,
           profitPercent: tradeProfit,
-          profitAbsolute: capital * (tradeProfit / 100)
+          profitAbsolute: capital * (tradeProfit / 100),
+          aiConfirmation: currentPosition.aiConfirmation
         });
 
         capital *= 1 + tradeProfit / 100;
@@ -432,7 +504,8 @@ export class TypedBacktestEngine {
         exitPrice: lastRow.price,
         side: currentPosition.side,
         profitPercent: tradeProfit,
-        profitAbsolute: capital * (tradeProfit / 100)
+        profitAbsolute: capital * (tradeProfit / 100),
+        aiConfirmation: currentPosition.aiConfirmation
       });
     }
 

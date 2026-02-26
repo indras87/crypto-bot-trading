@@ -65,8 +65,8 @@
                         <select id="typeFilter" class="border border-gray-300 rounded px-3 py-1.5 text-[13px]" onchange="loadMarkets()">
                             <option value="">All Types</option>
                             <option value="spot">Spot</option>
-                            <option value="swap">Swap (Perpetual)</option>
-                            <option value="future">Future</option>
+                            <option value="swap">Future (Perp)</option>
+                            <option value="future">Future (Dated)</option>
                             <option value="margin">Margin</option>
                         </select>
                         <input type="text" id="marketSearch" placeholder="Search pair..." class="border border-gray-300 rounded px-3 py-1.5 text-[13px] w-48" oninput="filterMarkets()">
@@ -217,8 +217,8 @@ function getTypeBadge(m) {
     const types = [];
     if (m.spot) types.push('<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-xs mr-1">Spot</span>');
     if (m.margin) types.push('<span class="bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded text-xs mr-1">Margin</span>');
-    if (m.swap) types.push('<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs mr-1">Swap</span>');
-    if (m.future) types.push('<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Future</span>');
+    if (m.swap) types.push('<span class="bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded text-xs mr-1">Future (Perp)</span>');
+    if (m.future) types.push('<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Future (Dated)</span>');
 
     return types.length > 0 ? types.join('') : '<span class="text-gray-400">-</span>';
 }

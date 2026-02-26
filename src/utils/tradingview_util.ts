@@ -6,17 +6,21 @@ export function buildTradingViewSymbol(exchange: string, pair: string): string {
   let symbol = pair.replace('/', '');
 
   // Exchange-specific adjustments
-  if (exchange === 'binance') {
-    // For futures, append PERP
+  if (exchange === 'binance' || exchange === 'binanceusdm' || exchange === 'binancecoinm') {
+    // For Binance Futures, TradingView usually uses .P or PERP
     if (pair.includes(':USDT')) {
-      symbol = symbol.replace(':USDT', 'PERP');
+      symbol = symbol.replace(':USDT', '.P');
+    } else if (pair.includes(':USDC')) {
+      symbol = symbol.replace(':USDC', '.P');
+    } else if (pair.includes(':BTC')) {
+      symbol = symbol.replace(':BTC', '.P');
     }
   }
 
   if (exchange === 'bybit') {
-    if (pair.endsWith(':USDT')) {
+    if (pair.includes(':USDT')) {
       symbol = symbol.replace(':USDT', '.P');
-    } else if (pair.endsWith(':USDC')) {
+    } else if (pair.includes(':USDC')) {
       symbol = symbol.replace(':USDC', '.P');
     }
   }
@@ -26,6 +30,8 @@ export function buildTradingViewSymbol(exchange: string, pair: string): string {
     'coinbasepro': 'coinbase',
     'coinbase': 'coinbase',
     'binance': 'binance',
+    'binanceusdm': 'binance',
+    'binancecoinm': 'binance',
     'bybit': 'bybit',
     'kraken': 'kraken',
     'bitfinex': 'bitfinex',

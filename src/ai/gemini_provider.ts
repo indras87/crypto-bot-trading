@@ -1,10 +1,11 @@
 import { AiAnalysisInput, AiAnalysisResult } from './types';
 import { AiService } from './ai_service';
 import type { Logger } from '../modules/services';
-
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 export class GeminiProvider implements AiService {
+  private genAI: GoogleGenerativeAI;
+  private modelInstance: GenerativeModel;
   private enabled: boolean;
 
   constructor(
@@ -14,6 +15,20 @@ export class GeminiProvider implements AiService {
     private minConfidence: number = 0.7
   ) {
     this.enabled = !!apiKey && apiKey.length > 0;
+    if (this.enabled) {
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      // Ensure we use a valid model name (fallback to 2.0-flash)
+      const validModel = model && (model.includes('gemini-1.5') || model.includes('gemini-2.0')) ? model : 'gemini-2.5-flash';
+      
+      this.modelInstance = this.genAI.getGenerativeModel({ 
+        model: validModel,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 4096,
+          topP: 0.1,
+        }
+      });
+    }
   }
 
   isEnabled(): boolean {
@@ -21,15 +36,15 @@ export class GeminiProvider implements AiService {
   }
 
   async analyze(input: AiAnalysisInput): Promise<AiAnalysisResult> {
-    if (!this.enabled) {
-      return {
-        confirmed: true,
-        confidence: 1.0,
-        action: 'confirm',
-        reasoning: 'AI disabled - auto-confirming',
-        riskLevel: 'medium'
-      };
-    }
+    const defaultResult: AiAnalysisResult = {
+      confirmed: true,
+      confidence: 1.0,
+      action: 'confirm',
+      reasoning: 'AI disabled or error - defaulting to confirm',
+      riskLevel: 'medium'
+    };
+
+    if (!this.enabled) return defaultResult;
 
     if (!input.signal) {
       return {
@@ -44,17 +59,54 @@ export class GeminiProvider implements AiService {
     const prompt = this.buildPrompt(input);
 
     try {
-      const response = await this.callGemini(prompt);
-      return this.parseResponse(response, input);
+      const result = await this.modelInstance.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      return this.parseResponse(text, input);
     } catch (error: any) {
-      this.logger.error(`[GeminiProvider] Analysis failed: ${error.message}`);
+      this.logger.error(`[GeminiProvider] Signal analysis failed: ${error.message}`);
       return {
-        confirmed: true,
+        ...defaultResult,
         confidence: 0.5,
-        action: 'confirm',
-        reasoning: `AI analysis failed, defaulting to confirm: ${error.message}`,
+        reasoning: `AI analysis failed: ${error.message}`,
         riskLevel: 'high'
       };
+    }
+  }
+
+  async analyzeBacktest(result: any): Promise<string> {
+    if (!this.enabled) {
+      return 'AI disabled. Please configure your API key.';
+    }
+
+    const prompt = `You are an expert crypto quantitative trader. Analyze these backtest results and provide optimization recommendations.
+
+BACKTEST SUMMARY:
+- Strategy: ${result.strategyName}
+- Current Parameters: ${JSON.stringify(result.strategyOptions)}
+- Pair: ${result.exchange}:${result.symbol}
+- Period: ${result.period}
+- Trades: ${result.summary.trades.total}
+- Win Rate: ${result.summary.trades.profitabilityPercent.toFixed(1)}%
+- Net Profit: ${result.summary.netProfit.toFixed(2)}%
+- Max Drawdown: ${result.summary.maxDrawdown.toFixed(2)}%
+
+Analyze and provide:
+1. Performance Critique.
+2. Parameter Optimization (suggest specific numbers).
+3. Risk Management tips.
+
+Markdown format only. Be concise and professional.`;
+
+    try {
+      // Use a fresh model instance for text-heavy content to avoid shared config issues
+      const textModel = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const resultObj = await textModel.generateContent(prompt);
+      const response = await resultObj.response;
+      return response.text() || 'No recommendations generated.';
+    } catch (error: any) {
+      this.logger.error(`[GeminiProvider] Backtest analysis failed: ${error.message}`);
+      return `Failed to generate recommendations: ${error.message}`;
     }
   }
 
@@ -65,102 +117,63 @@ export class GeminiProvider implements AiService {
 
     const signalAction = input.signal === 'long' ? 'BUY/LONG' : input.signal === 'short' ? 'SELL/SHORT' : 'CLOSE POSITION';
 
-    return `You are a cryptocurrency trading assistant. Analyze this trading signal and provide your assessment.
+    return `ACT AS A TRADING ROBOT. VALIDATE THIS SIGNAL.
+OUTPUT ONLY RAW JSON. NO MARKDOWN. NO EXTRA TEXT.
 
-TRADING CONTEXT:
-- Exchange: ${input.exchange}
-- Pair: ${input.pair}
-- Current Price: $${input.price.toFixed(2)}
-- Timeframe: ${input.timeframe}
-- Last Signal: ${input.lastSignal || 'none'}
-- Proposed Signal: ${signalAction}
+CONTEXT:
+- Pair: ${input.exchange}:${input.pair}
+- Price: ${input.price.toFixed(2)}
+- TF: ${input.timeframe}
+- Action: ${signalAction}
 
 INDICATORS:
 ${indicatorStr}
 
-Analyze this signal considering:
-1. Trend direction and strength (ADX, EMA alignment)
-2. Momentum (MACD histogram, RSI level)
-3. Volume confirmation (OBV trend)
-4. Risk/reward ratio for this entry point
-5. Current market conditions
-
-Respond in JSON format only:
+JSON SCHEMA:
 {
-  "confirmed": true/false,
-  "confidence": 0.0-1.0,
-  "action": "confirm" | "reject" | "wait",
-  "reasoning": "Brief explanation (max 100 words)",
-  "riskLevel": "low" | "medium" | "high",
-  "suggestedStopLoss": price_in_usd_or_null,
-  "suggestedTakeProfit": price_in_usd_or_null
-}
-
-Be conservative. Only confirm if confidence > 70%. Default to "wait" if uncertain.`;
+  "confirmed": boolean,
+  "confidence": number,
+  "action": "confirm"|"reject"|"wait",
+  "reasoning": "string",
+  "riskLevel": "low"|"medium"|"high",
+  "suggestedStopLoss": number|null,
+  "suggestedTakeProfit": number|null
+}`;
   }
 
-  private async callGemini(prompt: string): Promise<any> {
-    const url = `${GEMINI_API_URL}/${this.model}:generateContent?key=${this.apiKey}`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [{ text: prompt }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 500,
-          topP: 0.8
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    return data;
-  }
-
-  private parseResponse(response: any, input: AiAnalysisInput): AiAnalysisResult {
+  private parseResponse(text: string, input: AiAnalysisInput): AiAnalysisResult {
     try {
-      const text = response.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in response');
+      let start = text.indexOf('{');
+      let end = text.lastIndexOf('}');
+      
+      if (start !== -1 && end === -1) {
+        text = text + '\n}';
+        end = text.lastIndexOf('}');
       }
 
-      const parsed = JSON.parse(jsonMatch[0]);
-
-      const confidence = Math.max(0, Math.min(1, parsed.confidence || 0.5));
-      const action = parsed.action || 'wait';
-      const confirmed = action === 'confirm' && confidence >= this.minConfidence;
+      if (start === -1 || end === -1) {
+        throw new Error('No JSON structure found in response');
+      }
+      
+      const jsonStr = text.substring(start, end + 1);
+      const parsed = JSON.parse(jsonStr);
 
       return {
-        confirmed,
-        confidence,
-        action,
+        confirmed: !!parsed.confirmed,
+        confidence: Math.max(0, Math.min(1, parsed.confidence || 0.5)),
+        action: parsed.action || 'wait',
         reasoning: parsed.reasoning || 'No reasoning provided',
         riskLevel: parsed.riskLevel || 'medium',
         suggestedStopLoss: parsed.suggestedStopLoss || undefined,
         suggestedTakeProfit: parsed.suggestedTakeProfit || undefined
       };
     } catch (error: any) {
-      this.logger.error(`[GeminiProvider] Failed to parse response: ${error.message}`);
+      this.logger.error(`[GeminiProvider] Parse error: ${error.message}. Snippet: ${text.substring(0, 50)}`);
       return {
         confirmed: false,
         confidence: 0.5,
         action: 'wait',
-        reasoning: 'Failed to parse AI response',
+        reasoning: `Failed to parse AI response: ${error.message}`,
         riskLevel: 'high'
       };
     }

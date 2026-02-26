@@ -6,7 +6,7 @@ export interface ProfilePair {
   profileId: string;
   profileName: string;
   pair: string;
-  type: 'spot' | 'margin' | 'swap' | 'future' | 'option';
+  type: 'spot' | 'margin' | 'future_perp' | 'future_dated' | 'option' | string;
 }
 
 export interface ProfilePairResult {
@@ -137,10 +137,10 @@ export class ProfilePairService {
   /**
    * Determine market type
    */
-  private getMarketType(market: any): 'spot' | 'margin' | 'swap' | 'future' | 'option' {
+  private getMarketType(market: any): string {
     if (market.option) return 'option';
-    if (market.future) return 'future';
-    if (market.swap) return 'swap';
+    if (market.future) return 'future_dated';
+    if (market.swap) return 'future_perp';
     if (market.margin) return 'margin';
     return 'spot';
   }

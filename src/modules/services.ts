@@ -71,6 +71,7 @@ import { PivotReversalStrategy } from '../strategy/strategies/pivot_reversal_str
 import { Trader } from '../strategy/strategies/trader';
 import { Noop as NoopStrategy } from '../strategy/strategies/noop';
 import { Survival } from '../strategy/strategies/survival';
+import { MultiIndicator } from '../strategy/strategies/multi_indicator';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -524,7 +525,8 @@ const services: Services = {
       this.getExchangeCandleCombine(),
       this.getV2StrategyRegistry(),
       this.getStrategyExecutor(),
-      this.getCcxtCandleWatchService()
+      this.getCcxtCandleWatchService(),
+      this.getAiService()
     );
   },
 
@@ -614,7 +616,8 @@ const services: Services = {
       PivotReversalStrategy,
       Trader,
       NoopStrategy,
-      Survival
+      Survival,
+      MultiIndicator
     ]));
   },
 
