@@ -57,6 +57,7 @@ import { DashboardSettingsController } from '../controller';
 import { ProfileController } from '../controller';
 import { SettingsController } from '../controller';
 import { TradingViewController } from '../controller/tradingview_controller';
+import { TradingHistoryController } from '../controller/trading_history_controller';
 
 // V2 Strategies
 import { DcaDipper } from '../strategy/strategies/dca_dipper/dca_dipper';
@@ -205,6 +206,7 @@ export interface Services {
   getProfileController(templateHelpers: any): ProfileController;
   getSettingsController(templateHelpers: any): SettingsController;
   getTradingViewController(templateHelpers: any): TradingViewController;
+  getTradingHistoryController(templateHelpers: any): TradingHistoryController;
   getExchangeInstanceService(): ExchangeInstanceService;
   getProfileService(): ProfileService;
   getProfilePairService(): ProfilePairService;
@@ -564,6 +566,10 @@ const services: Services = {
 
   getTradingViewController: function (templateHelpers: any): TradingViewController {
     return new TradingViewController(templateHelpers);
+  },
+
+  getTradingHistoryController: function (templateHelpers: any): TradingHistoryController {
+    return new TradingHistoryController(templateHelpers, this.getProfileService());
   },
 
   getExchangeInstanceService: function (): ExchangeInstanceService {

@@ -1,0 +1,295 @@
+<div class="p-3 md:p-4">
+    <div class="max-w-[1800px] mx-auto">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">Trading History</h1>
+            <div class="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                <form method="get" action="/trading-history/export" class="w-full sm:w-auto">
+                    <input type="hidden" name="profile" value="<%= selectedProfile %>">
+                    <input type="hidden" name="symbol" value="<%= selectedSymbol %>">
+                    <input type="hidden" name="type" value="<%= selectedType %>">
+                    <input type="hidden" name="limit" value="<%= limit %>">
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm w-full sm:w-auto">
+                        <i class="fas fa-download mr-1"></i> <span class="hidden sm:inline">Export CSV</span>
+                    </button>
+                </form>
+                <form method="get" action="/trading-history" class="w-full sm:w-auto">
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm w-full sm:w-auto">
+                        <i class="fas fa-arrows-rotate mr-1"></i> <span class="hidden sm:inline">Reload</span>
+                    </button>
+                </form>
+                <nav class="text-sm text-gray-500 hidden sm:block">
+                    <a href="/" class="text-blue-600 hover:underline">Dashboard</a> / Trading History
+                </nav>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded mb-4">
+            <form method="get" action="/trading-history" class="flex flex-wrap gap-3 items-end">
+                <div>
+                    <label class="block text-xs font-medium mb-1">Profile</label>
+                    <select name="profile" class="border border-gray-300 rounded px-3 py-2 text-sm min-w-[150px]">
+                        <option value="">All Profiles</option>
+                        <% profiles.forEach(function(p) { %>
+                            <option value="<%= p.id %>" <%= selectedProfile === p.id ? 'selected' : '' %>><%= p.name %> (<%= p.exchange %>)</option>
+                        <% }); %>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Symbol</label>
+                    <input type="text" name="symbol" value="<%= selectedSymbol %>" placeholder="BTC/USDT" class="border border-gray-300 rounded px-3 py-2 text-sm w-[120px]">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Type</label>
+                    <select name="type" class="border border-gray-300 rounded px-3 py-2 text-sm">
+                        <option value="all" <%= selectedType === 'all' ? 'selected' : '' %>>All</option>
+                        <option value="orders" <%= selectedType === 'orders' ? 'selected' : '' %>>Orders</option>
+                        <option value="trades" <%= selectedType === 'trades' ? 'selected' : '' %>>Trades</option>
+                        <option value="positions" <%= selectedType === 'positions' ? 'selected' : '' %>>Positions</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium mb-1">Limit</label>
+                    <select name="limit" class="border border-gray-300 rounded px-3 py-2 text-sm">
+                        <option value="50" <%= limit === 50 ? 'selected' : '' %>>50</option>
+                        <option value="100" <%= limit === 100 ? 'selected' : '' %>>100</option>
+                        <option value="200" <%= limit === 200 ? 'selected' : '' %>>200</option>
+                        <option value="500" <%= limit === 500 ? 'selected' : '' %>>500</option>
+                    </select>
+                </div>
+                <button type="submit" class="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 text-sm">
+                    <i class="fas fa-filter mr-1"></i> Filter
+                </button>
+            </form>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-4">
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Total Orders</div>
+                <div class="text-lg font-semibold"><%= stats.totalOrders %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Total Trades</div>
+                <div class="text-lg font-semibold"><%= stats.totalTrades %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Closed Positions</div>
+                <div class="text-lg font-semibold"><%= stats.totalPositions %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Total Fees</div>
+                <div class="text-lg font-semibold text-orange-600"><%= stats.totalFees.toFixed(4) %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Realized PnL</div>
+                <div class="text-lg font-semibold <%= stats.totalPnL >= 0 ? 'text-green-600' : 'text-red-600' %>">
+                    <%= stats.totalPnL >= 0 ? '+' : '' %><%= stats.totalPnL.toFixed(4) %>
+                </div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Win Rate</div>
+                <div class="text-lg font-semibold <%= stats.winRate >= 50 ? 'text-green-600' : 'text-red-600' %>">
+                    <%= stats.winRate.toFixed(1) %>%
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Long Wins</div>
+                <div class="text-lg font-semibold text-green-600"><%= stats.longWins %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Long Losses</div>
+                <div class="text-lg font-semibold text-red-600"><%= stats.longLosses %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Short Wins</div>
+                <div class="text-lg font-semibold text-green-600"><%= stats.shortWins %></div>
+            </div>
+            <div class="bg-white p-3 rounded border border-gray-200">
+                <div class="text-xs text-gray-500">Short Losses</div>
+                <div class="text-lg font-semibold text-red-600"><%= stats.shortLosses %></div>
+            </div>
+        </div>
+
+        <% if (selectedType === 'all' || selectedType === 'positions') { %>
+        <div class="bg-white overflow-x-auto mb-4">
+            <div class="px-4 py-3 border-b-2 border-gray-300 flex justify-between items-center">
+                <span class="text-lg font-semibold">Closed Positions (<%= positions.length %>)</span>
+                <span class="text-gray-500 text-[13px]"><%= updatedAt %></span>
+            </div>
+            <% if (positions.length > 0) { %>
+            <table class="w-full border-collapse text-[13px]">
+                <thead>
+                <tr>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Profile</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Symbol</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Side</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Contracts</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Entry</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Exit</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">PnL</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Fees</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Lev.</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Duration</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Close Time</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% positions.forEach(function(p) { 
+                    const duration = p.closeTimestamp && p.openTimestamp ? (p.closeTimestamp - p.openTimestamp) / 1000 / 60 : 0;
+                %>
+                <tr class="hover:bg-gray-100">
+                    <td class="border border-gray-200 px-3 py-2 text-gray-600">
+                        <img src="/img/exchanges/<%= p.exchange %>.png" alt="<%= p.exchange %>" title="<%= p.exchange %>" width="16" height="16" class="inline-block mr-1">
+                        <%= p.profileName %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono"><%= p.symbol %></td>
+                    <td class="border border-gray-200 px-3 py-2">
+                        <% if (p.side === 'short') { %>
+                            <span class="px-2 py-0.5 rounded text-xs bg-red-100 text-red-800">short</span>
+                        <% } else if (p.side === 'long') { %>
+                            <span class="px-2 py-0.5 rounded text-xs bg-green-100 text-green-800">long</span>
+                        <% } else { %>
+                            <span class="text-gray-400"><%= p.side %></span>
+                        <% } %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= p.contracts %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= p.entryPrice < 1 ? p.entryPrice.toFixed(6) : p.entryPrice.toFixed(2) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= p.exitPrice < 1 ? p.exitPrice.toFixed(6) : p.exitPrice.toFixed(2) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right <%= p.realizedPnl >= 0 ? 'text-green-600' : 'text-red-600' %>">
+                        <%= p.realizedPnl >= 0 ? '+' : '' %><%= p.realizedPnl.toFixed(4) %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right text-orange-600"><%= p.fee.toFixed(4) %></td>
+                    <td class="border border-gray-200 px-3 py-2 text-right text-gray-600"><%= p.leverage %>×</td>
+                    <td class="border border-gray-200 px-3 py-2 text-right text-gray-500">
+                        <% if (duration < 60) { %>
+                            <%= duration.toFixed(0) %>m
+                        <% } else if (duration < 1440) { %>
+                            <%= (duration / 60).toFixed(1) %>h
+                        <% } else { %>
+                            <%= (duration / 1440).toFixed(1) %>d
+                        <% } %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 text-gray-500 whitespace-nowrap">
+                        <%= p.closeTimestamp ? new Date(p.closeTimestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-' %>
+                    </td>
+                </tr>
+                <% }); %>
+                </tbody>
+            </table>
+            <% } else { %>
+            <div class="p-4 text-center text-gray-400">No closed positions</div>
+            <% } %>
+        </div>
+        <% } %>
+
+        <% if (selectedType === 'all' || selectedType === 'trades') { %>
+        <div class="bg-white overflow-x-auto mb-4">
+            <div class="px-4 py-3 border-b-2 border-gray-300 flex justify-between items-center">
+                <span class="text-lg font-semibold">My Trades (<%= trades.length %>)</span>
+                <span class="text-gray-500 text-[13px]"><%= updatedAt %></span>
+            </div>
+            <% if (trades.length > 0) { %>
+            <table class="w-full border-collapse text-[13px]">
+                <thead>
+                <tr>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Profile</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Symbol</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Side</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Type</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Price</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Amount</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Cost</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Fee</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Time</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% trades.forEach(function(t) { %>
+                <tr class="hover:bg-gray-100">
+                    <td class="border border-gray-200 px-3 py-2 text-gray-600">
+                        <img src="/img/exchanges/<%= t.exchange %>.png" alt="<%= t.exchange %>" title="<%= t.exchange %>" width="16" height="16" class="inline-block mr-1">
+                        <%= t.profileName %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono"><%= t.pair %></td>
+                    <td class="border border-gray-200 px-3 py-2">
+                        <span class="px-2 py-0.5 rounded text-xs <%= t.side === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                            <%= t.side %>
+                        </span>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 text-gray-500"><%= t.type %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= t.price < 1 ? t.price.toFixed(6) : t.price.toFixed(2) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= t.amount.toFixed(6) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= t.cost.toFixed(2) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right text-orange-600"><%= t.fee.toFixed(4) %> <%= t.feeCurrency %></td>
+                    <td class="border border-gray-200 px-3 py-2 text-gray-500 whitespace-nowrap">
+                        <%= t.timestamp ? new Date(t.timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-' %>
+                    </td>
+                </tr>
+                <% }); %>
+                </tbody>
+            </table>
+            <% } else { %>
+            <div class="p-4 text-center text-gray-400">No trades</div>
+            <% } %>
+        </div>
+        <% } %>
+
+        <% if (selectedType === 'all' || selectedType === 'orders') { %>
+        <div class="bg-white overflow-x-auto">
+            <div class="px-4 py-3 border-b-2 border-gray-300 flex justify-between items-center">
+                <span class="text-lg font-semibold">Closed Orders (<%= orders.length %>)</span>
+                <span class="text-gray-500 text-[13px]"><%= updatedAt %></span>
+            </div>
+            <% if (orders.length > 0) { %>
+            <table class="w-full border-collapse text-[13px]">
+                <thead>
+                <tr>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Profile</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Symbol</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Side</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Type</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Price</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Amount</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Filled</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Status</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Time</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% orders.forEach(function(o) { %>
+                <tr class="hover:bg-gray-100">
+                    <td class="border border-gray-200 px-3 py-2 text-gray-600">
+                        <img src="/img/exchanges/<%= o.exchange %>.png" alt="<%= o.exchange %>" title="<%= o.exchange %>" width="16" height="16" class="inline-block mr-1">
+                        <%= o.profileName %>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono"><%= o.pair %></td>
+                    <td class="border border-gray-200 px-3 py-2">
+                        <span class="px-2 py-0.5 rounded text-xs <%= o.side === 'buy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' %>">
+                            <%= o.side %>
+                        </span>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 text-gray-500"><%= o.type %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= o.price < 1 ? o.price.toFixed(6) : o.price.toFixed(2) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= o.amount.toFixed(6) %></td>
+                    <td class="border border-gray-200 px-3 py-2 font-mono text-right"><%= o.filled.toFixed(6) %></td>
+                    <td class="border border-gray-200 px-3 py-2">
+                        <span class="px-2 py-0.5 rounded text-xs <%= o.status === 'closed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' %>">
+                            <%= o.status %>
+                        </span>
+                    </td>
+                    <td class="border border-gray-200 px-3 py-2 text-gray-500 whitespace-nowrap">
+                        <%= o.timestamp ? new Date(o.timestamp).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' }) : '-' %>
+                    </td>
+                </tr>
+                <% }); %>
+                </tbody>
+            </table>
+            <% } else { %>
+            <div class="p-4 text-center text-gray-400">No closed orders</div>
+            <% } %>
+        </div>
+        <% } %>
+    </div>
+</div>

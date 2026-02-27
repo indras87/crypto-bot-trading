@@ -1,5 +1,5 @@
 import * as ccxt from 'ccxt';
-import { Profile, Balance, OrderParams, OrderResult, OrderInfo, MarketData, Bot, BotConfig } from './types';
+import { Profile, Balance, OrderParams, OrderResult, OrderInfo, MarketData, Bot, BotConfig, TradeInfo, ClosedPositionInfo } from './types';
 import { ConfigService } from '../modules/system/config_service';
 import { ExchangeInstanceService } from '../modules/system/exchange_instance_service';
 import { BinancePriceService } from '../utils/binance_price_service';
@@ -12,14 +12,16 @@ import {
   cancelOrder as cancelOrderCCXT,
   cancelAllOrders as cancelAllOrdersCCXT,
   fetchOpenPositions as fetchOpenPositionsCCXT,
-  closePosition as closePositionCCXT
+  closePosition as closePositionCCXT,
+  fetchClosedPositions as fetchClosedPositionsCCXT,
+  fetchMyTrades as fetchMyTradesCCXT
 } from './profile_order_service';
 
 export class ProfileService {
   constructor(
     private configService: ConfigService,
     private exchangeInstanceService: ExchangeInstanceService,
-    private binancePriceService: BinancePriceService,
+    private binancePriceService: BinancePriceService
   ) {}
 
   private generateId(): string {
@@ -43,7 +45,7 @@ export class ProfileService {
       name: data.name || '',
       exchange: data.exchange || '',
       apiKey: data.apiKey,
-      secret: data.secret,
+      secret: data.secret
     };
     profiles.push(profile);
     this.configService.saveProfiles(profiles);
@@ -62,7 +64,7 @@ export class ProfileService {
     const updated: Profile = {
       ...existing,
       ...data,
-      id: existing.id,
+      id: existing.id
     };
 
     profiles[index] = updated;
@@ -101,7 +103,7 @@ export class ProfileService {
           currency,
           total: b.total,
           free: b.free || 0,
-          used: b.used || 0,
+          used: b.used || 0
         };
 
         // Add USD value for non-USDT coins
@@ -123,10 +125,12 @@ export class ProfileService {
   }
 
   getSupportedExchanges(): string[] {
-    return Object.keys(ccxt).filter((key) => {
-      const value = (ccxt as any)[key];
-      return typeof value === 'function' && key !== 'version' && key !== 'pro' && key[0] === key[0].toLowerCase();
-    }).sort();
+    return Object.keys(ccxt)
+      .filter(key => {
+        const value = (ccxt as any)[key];
+        return typeof value === 'function' && key !== 'version' && key !== 'pro' && key[0] === key[0].toLowerCase();
+      })
+      .sort();
   }
 
   /**
@@ -169,10 +173,7 @@ export class ProfileService {
    */
   async fetchAllOrders(profileId: string, closedLimit: number = 10): Promise<{ open: OrderInfo[]; closed: OrderInfo[] }> {
     const exchange = await this.getExchangeForProfile(profileId);
-    const [open, closed] = await Promise.all([
-      fetchOpenOrdersCCXT(exchange),
-      fetchClosedOrdersCCXT(exchange, undefined, closedLimit)
-    ]);
+    const [open, closed] = await Promise.all([fetchOpenOrdersCCXT(exchange), fetchClosedOrdersCCXT(exchange, undefined, closedLimit)]);
     return { open, closed };
   }
 
@@ -221,6 +222,22 @@ export class ProfileService {
     return cancelAllOrdersCCXT(exchange, pair);
   }
 
+  /**
+   * Fetch closed swap/futures positions for a profile
+   */
+  async fetchClosedPositions(profileId: string, symbol?: string, limit?: number): Promise<ClosedPositionInfo[]> {
+    const exchange = await this.getExchangeForProfile(profileId);
+    return fetchClosedPositionsCCXT(exchange, symbol, limit);
+  }
+
+  /**
+   * Fetch my trades (filled orders) for a profile
+   */
+  async fetchMyTrades(profileId: string, symbol?: string, limit?: number): Promise<TradeInfo[]> {
+    const exchange = await this.getExchangeForProfile(profileId);
+    return fetchMyTradesCCXT(exchange, symbol, limit);
+  }
+
   // ==================== Bot Management ====================
 
   getBots(profileId: string): Bot[] {
@@ -249,7 +266,7 @@ export class ProfileService {
       capital: config.capital,
       mode: config.mode,
       status: 'stopped',
-      options: config.options,
+      options: config.options
     };
 
     if (!profiles[profileIndex].bots) {
@@ -288,7 +305,7 @@ export class ProfileService {
       capital: updates.capital ?? existingBot.capital,
       mode: updates.mode ?? existingBot.mode,
       status: updates.status ?? existingBot.status,
-      options: updates.options !== undefined ? updates.options : existingBot.options,
+      options: updates.options !== undefined ? updates.options : existingBot.options
     };
 
     profiles[profileIndex].bots![botIndex] = updatedBot;

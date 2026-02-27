@@ -80,6 +80,37 @@ export interface PositionInfo {
   raw: any;
 }
 
+export interface ClosedPositionInfo {
+  symbol: string;
+  side: 'long' | 'short';
+  contracts: number;
+  contractSize?: number;
+  entryPrice: number;
+  exitPrice: number;
+  realizedPnl: number;
+  fee: number;
+  leverage: number;
+  marginMode?: string;
+  openTimestamp: number;
+  closeTimestamp: number;
+  raw: any;
+}
+
+export interface TradeInfo {
+  id: string;
+  orderId?: string;
+  pair: string;
+  side: 'buy' | 'sell';
+  type: string;
+  price: number;
+  amount: number;
+  cost: number;
+  fee: number;
+  feeCurrency: string;
+  timestamp: number;
+  raw: any;
+}
+
 // Bot-related types
 export type BotMode = 'watch' | 'trade';
 export type BotStatus = 'stopped' | 'running';

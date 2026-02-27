@@ -173,6 +173,7 @@ export class Http {
     this.services.getProfileController(this.templateHelpers).registerRoutes(mainRouter);
     this.services.getSettingsController(this.templateHelpers).registerRoutes(mainRouter);
     this.services.getTradingViewController(this.templateHelpers).registerRoutes(mainRouter);
+    this.services.getTradingHistoryController(this.templateHelpers).registerRoutes(mainRouter);
 
     // Mount the main router at root
     app.use('/', mainRouter);

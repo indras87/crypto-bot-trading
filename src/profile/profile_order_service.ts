@@ -1,5 +1,5 @@
 import * as ccxt from 'ccxt';
-import { MarketData, OrderParams, OrderResult, OrderInfo, OrderSide, PositionInfo } from './types';
+import { MarketData, OrderParams, OrderResult, OrderInfo, OrderSide, PositionInfo, TradeInfo, ClosedPositionInfo } from './types';
 
 /**
  * Fetches current bid/ask prices for a trading pair
@@ -188,7 +188,13 @@ export async function fetchOpenOrders(exchange: ccxt.Exchange, pair?: string): P
  * Fetches closed/filled orders from the exchange
  */
 export async function fetchClosedOrders(exchange: ccxt.Exchange, pair?: string, limit?: number): Promise<OrderInfo[]> {
-  let orders: any[];
+  let orders: any[] = [];
+
+  // Binance Futures (usdm) requires a symbol argument
+  if (!pair && exchange.id.toLowerCase().includes('binance') && exchange.id.toLowerCase().includes('usdm')) {
+    console.log(`fetchClosedOrders: binanceusdm requires symbol, skipping`);
+    return [];
+  }
 
   // When fetching ALL orders on Bybit, we need to specify categories
   if (!pair && exchange.id.toLowerCase().includes('bybit')) {
@@ -202,7 +208,12 @@ export async function fetchClosedOrders(exchange: ccxt.Exchange, pair?: string, 
       }
     }
   } else {
-    orders = await exchange.fetchClosedOrders(pair, undefined, limit);
+    try {
+      orders = await exchange.fetchClosedOrders(pair, undefined, limit);
+    } catch (e: any) {
+      console.log(`fetchClosedOrders failed: ${e.message}`);
+      return [];
+    }
   }
 
   return orders.map(order => ({
@@ -216,6 +227,7 @@ export async function fetchClosedOrders(exchange: ccxt.Exchange, pair?: string, 
     remaining: order.remaining ?? 0,
     status: order.status ?? 'unknown',
     timestamp: order.timestamp ?? 0,
+    fee: order.fee?.cost ?? 0,
     raw: order
   }));
 }
@@ -327,4 +339,116 @@ export async function cancelAllOrders(exchange: ccxt.Exchange, pair: string): Pr
   for (const order of orders) {
     await cancelOrder(exchange, order.id, pair);
   }
+}
+
+/**
+ * Fetches closed swap/futures positions from the exchange.
+ * Note: CCXT fetchClosedPositions is limited on some exchanges.
+ * Returns positions that were closed (realized PnL available).
+ */
+export async function fetchClosedPositions(exchange: ccxt.Exchange, symbol?: string, limit?: number): Promise<ClosedPositionInfo[]> {
+  if (!(exchange as any).has['fetchClosedPositions']) {
+    return [];
+  }
+
+  let positions: any[] = [];
+
+  try {
+    if (exchange.id.toLowerCase().includes('bybit')) {
+      for (const category of ['linear', 'inverse']) {
+        try {
+          const categoryPositions = await (exchange as any).fetchClosedPositions(symbol, limit, { category });
+          positions = positions.concat(categoryPositions);
+        } catch (e: any) {
+          console.log(`Bybit ${category} closed positions fetch failed: ${e.message}`);
+        }
+      }
+    } else {
+      positions = await (exchange as any).fetchClosedPositions(symbol, limit);
+    }
+  } catch (e: any) {
+    console.log(`fetchClosedPositions failed: ${e.message}`);
+    return [];
+  }
+
+  return positions
+    .filter((p: any) => p.contracts && Math.abs(p.contracts) === 0 && p.realizedPnl !== undefined)
+    .map((p: any) => ({
+      symbol: p.symbol,
+      side: p.side as 'long' | 'short',
+      contracts: Math.abs(p.contracts ?? 0),
+      contractSize: p.contractSize,
+      entryPrice: p.entryPrice ?? 0,
+      exitPrice: p.markPrice ?? p.exitPrice ?? 0,
+      realizedPnl: p.realizedPnl ?? 0,
+      fee: p.fee ?? 0,
+      leverage: p.leverage ?? 0,
+      marginMode: p.marginMode ?? p.marginType,
+      openTimestamp: p.timestamp ?? 0,
+      closeTimestamp: p.closingTimestamp ?? Date.now(),
+      raw: p
+    }));
+}
+
+/**
+ * Fetches my trades (filled orders) from the exchange.
+ * This includes all executed trades with fees.
+ */
+export async function fetchMyTrades(exchange: ccxt.Exchange, symbol?: string, limit?: number): Promise<TradeInfo[]> {
+  if (!(exchange as any).has['fetchMyTrades']) {
+    return [];
+  }
+
+  let trades: any[] = [];
+
+  // Binance Futures (usdm) - requires symbol to be loaded first
+  const isBinanceUsdm = exchange.id.toLowerCase().includes('binance') && exchange.id.toLowerCase().includes('usdm');
+  if (isBinanceUsdm && !symbol) {
+    console.log(`fetchMyTrades: binanceusdm requires symbol, skipping`);
+    return [];
+  }
+
+  try {
+    if (exchange.id.toLowerCase().includes('bybit')) {
+      for (const category of ['spot', 'linear']) {
+        try {
+          const categoryTrades = await exchange.fetchMyTrades(symbol, undefined, limit, { category });
+          trades = trades.concat(categoryTrades);
+        } catch (e: any) {
+          console.log(`Bybit ${category} my trades fetch failed: ${e.message}`);
+        }
+      }
+    } else if (isBinanceUsdm && symbol) {
+      // Binance USDM - try to load market first
+      try {
+        await exchange.loadMarkets();
+        const market = exchange.market(symbol);
+        if (market) {
+          trades = await exchange.fetchMyTrades(symbol, undefined, limit);
+        }
+      } catch (e: any) {
+        console.log(`fetchMyTrades for ${symbol} failed: ${e.message}`);
+      }
+    } else {
+      trades = await exchange.fetchMyTrades(symbol, undefined, limit);
+    }
+  } catch (e: any) {
+    console.log(`fetchMyTrades failed: ${e.message}`);
+    return [];
+  }
+
+  return trades.map((trade: any) => ({
+    id: trade.id,
+    orderId: trade.order,
+    pair: trade.symbol,
+    side: trade.side as 'buy' | 'sell',
+    type: trade.type ?? 'unknown',
+    price: trade.price ?? 0,
+    amount: trade.amount ?? 0,
+    cost: trade.cost ?? 0,
+    fee: trade.fee?.cost ?? 0,
+    feeCurrency: trade.fee?.currency ?? 'UNKNOWN',
+    timestamp: trade.timestamp ?? 0,
+    raw: trade
+  }));
 }
