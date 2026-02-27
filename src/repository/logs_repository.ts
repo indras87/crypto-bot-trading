@@ -12,17 +12,27 @@ export interface Statement {
 export class LogsRepository {
   constructor(private db: Database) { }
 
-  async getTotalLogsCount(excludes: string[] = []): Promise<number> {
+  async getTotalLogsCount(excludes: string[] = [], searchMessage: string = ''): Promise<number> {
     let sql = 'SELECT COUNT(*) as count from logs';
     const parameters: Record<string, any> = {};
+    const conditions: string[] = [];
 
     if (excludes.length > 0) {
-      sql += ` WHERE level NOT IN (${excludes
+      conditions.push(`level NOT IN (${excludes
         .map((exclude, index) => `$level_${index}`)
-        .join(', ')})`;
+        .join(', ')})`);
       excludes.forEach((exclude, index) => {
         parameters[`level_${index}`] = exclude;
       });
+    }
+
+    if (searchMessage.trim()) {
+      conditions.push(`message LIKE $search`);
+      parameters['search'] = `%${searchMessage.trim()}%`;
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
     }
 
     const stmt = this.db.prepare(sql);
@@ -33,21 +43,32 @@ export class LogsRepository {
   async getLatestLogs(
     excludes: string[] = ['debug'],
     limit: number = 50,
-    offset: number = 0
+    offset: number = 0,
+    searchMessage: string = ''
   ): Promise<any[]> {
-    let sql = `SELECT * from logs order by created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-
+    let sql = `SELECT * from logs`;
     const parameters: Record<string, any> = {};
+    const conditions: string[] = [];
 
     if (excludes.length > 0) {
-      sql = `SELECT * from logs WHERE level NOT IN (${excludes
+      conditions.push(`level NOT IN (${excludes
         .map((exclude, index) => `$level_${index}`)
-        .join(', ')}) order by created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-
+        .join(', ')})`);
       excludes.forEach((exclude, index) => {
         parameters[`level_${index}`] = exclude;
       });
     }
+
+    if (searchMessage.trim()) {
+      conditions.push(`message LIKE $search`);
+      parameters['search'] = `%${searchMessage.trim()}%`;
+    }
+
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    sql += ` order by created_at DESC LIMIT ${limit} OFFSET ${offset}`;
 
     const stmt = this.db.prepare(sql);
     return stmt.all(parameters);

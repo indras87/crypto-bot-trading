@@ -12,6 +12,31 @@
             <div class="px-3 md:px-4 py-3 border-b border-gray-200">
                 <strong>Filters</strong>
                 <form method="get" class="mt-2">
+                    <div class="flex flex-wrap items-center gap-2 md:gap-4 mb-2">
+                        <span>Search:</span>
+                        <input type="text" name="search" value="<%= form.search || '' %>"
+                            placeholder="Search log messages..."
+                            class="px-2 py-1 text-sm border border-gray-300 rounded w-48">
+                        <button type="submit"
+                            class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">Search</button>
+                        <% if (form.search) { %>
+                            <a href="?exclude_levels[]=debug"
+                                class="px-2 py-1 text-sm text-gray-500 hover:text-gray-700">Clear</a>
+                            <% } %>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 md:gap-4">
+                        <span>Quick filters:</span>
+                        <a href="?search=AI&exclude_levels[]=debug"
+                            class="px-2 py-1 text-sm text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200">AI
+                            Logs</a>
+                        <a href="?search=Gemini&exclude_levels[]=debug"
+                            class="px-2 py-1 text-sm text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">Gemini
+                            Errors</a>
+                        <a href="?search=BotRunner&exclude_levels[]=debug"
+                            class="px-2 py-1 text-sm text-xs bg-green-100 text-green-700 rounded hover:bg-green-200">BotRunner</a>
+                    </div>
+                </form>
+                <form method="get" class="mt-2">
                     <div class="flex flex-wrap items-center gap-2 md:gap-4">
                         <span>Exclude:</span>
                         <% levels.forEach(function(level, key) { %>
@@ -24,6 +49,9 @@
                                 </span>
                             </label>
                             <% }); %>
+                                <% if (form.search) { %>
+                                    <input type="hidden" name="search" value="<%= form.search %>">
+                                    <% } %>
                     </div>
                 </form>
             </div>
@@ -69,75 +97,81 @@
 
             <!-- Pagination -->
             <% if (pagination && pagination.totalPages> 1) { %>
-                <div
-                    class="px-3 md:px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2">
-                    <div class="text-sm text-gray-500">
-                        Showing <%= ((pagination.page - 1) * pagination.limit) + 1 %> to <%= Math.min(pagination.page *
-                                pagination.limit, pagination.totalCount) %> of <%= pagination.totalCount %> logs
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <% if (pagination.hasPrevPage) { %>
-                            <a href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
-                                class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">&laquo;
-                                Previous</a>
-                            <% } else { %>
-                                <span
-                                    class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">&laquo;
-                                    Previous</span>
-                                <% } %>
+                <% var searchParam=form.search ? '&search=' + encodeURIComponent(form.search) : '' ; var
+                    excludeParam=form.excludeLevels && form.excludeLevels.length> 0 ? '&exclude_levels[]=' +
+                    form.excludeLevels.join('&exclude_levels[]=') : '';
+                    %>
+                    <div
+                        class="px-3 md:px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+                        <div class="text-sm text-gray-500">
+                            Showing <%= ((pagination.page - 1) * pagination.limit) + 1 %> to <%=
+                                    Math.min(pagination.page * pagination.limit, pagination.totalCount) %> of <%=
+                                        pagination.totalCount %> logs
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <% if (pagination.hasPrevPage) { %>
+                                <a href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %><%= excludeParam %><%= searchParam %>"
+                                    class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">&laquo;
+                                    Previous</a>
+                                <% } else { %>
+                                    <span
+                                        class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">&laquo;
+                                        Previous</span>
+                                    <% } %>
 
-                                    <% var startPage=Math.max(1, pagination.page - 2); %>
-                                        <% var endPage=Math.min(pagination.totalPages, pagination.page + 2); %>
-                                            <% if (startPage> 1) { %>
-                                                <a href="?page=1&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
-                                                    class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">1</a>
-                                                <% if (startPage> 2) { %>
-                                                    <span class="px-2 text-gray-400">...</span>
-                                                    <% } %>
+                                        <% var startPage=Math.max(1, pagination.page - 2); %>
+                                            <% var endPage=Math.min(pagination.totalPages, pagination.page + 2); %>
+                                                <% if (startPage> 1) { %>
+                                                    <a href="?page=1&limit=<%= pagination.limit %><%= excludeParam %><%= searchParam %>"
+                                                        class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">1</a>
+                                                    <% if (startPage> 2) { %>
+                                                        <span class="px-2 text-gray-400">...</span>
                                                         <% } %>
+                                                            <% } %>
 
-                                                            <% for (var i=startPage; i <=endPage; i++) { %>
-                                                                <% if (i===pagination.page) { %>
-                                                                    <span
-                                                                        class="px-3 py-1 text-sm border border-blue-500 bg-blue-500 text-white rounded">
-                                                                        <%= i %>
-                                                                    </span>
-                                                                    <% } else { %>
-                                                                        <a href="?page=<%= i %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
-                                                                            class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                                <% for (var i=startPage; i <=endPage; i++) { %>
+                                                                    <% if (i===pagination.page) { %>
+                                                                        <span
+                                                                            class="px-3 py-1 text-sm border border-blue-500 bg-blue-500 text-white rounded">
                                                                             <%= i %>
-                                                                        </a>
-                                                                        <% } %>
+                                                                        </span>
+                                                                        <% } else { %>
+                                                                            <a href="?page=<%= i %>&limit=<%= pagination.limit %><%= excludeParam %><%= searchParam %>"
+                                                                                class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                                                <%= i %>
+                                                                            </a>
                                                                             <% } %>
+                                                                                <% } %>
 
-                                                                                <% if (endPage < pagination.totalPages)
-                                                                                    { %>
                                                                                     <% if (endPage <
-                                                                                        pagination.totalPages - 1) { %>
-                                                                                        <span
-                                                                                            class="px-2 text-gray-400">...</span>
-                                                                                        <% } %>
-                                                                                            <a href="?page=<%= pagination.totalPages %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
-                                                                                                class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
-                                                                                                <%= pagination.totalPages
-                                                                                                    %>
-                                                                                            </a>
+                                                                                        pagination.totalPages) { %>
+                                                                                        <% if (endPage <
+                                                                                            pagination.totalPages - 1) {
+                                                                                            %>
+                                                                                            <span
+                                                                                                class="px-2 text-gray-400">...</span>
                                                                                             <% } %>
+                                                                                                <a href="?page=<%= pagination.totalPages %>&limit=<%= pagination.limit %><%= excludeParam %><%= searchParam %>"
+                                                                                                    class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                                                                    <%= pagination.totalPages
+                                                                                                        %>
+                                                                                                </a>
+                                                                                                <% } %>
 
-                                                                                                <% if
-                                                                                                    (pagination.hasNextPage)
-                                                                                                    { %>
-                                                                                                    <a href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
-                                                                                                        class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">Next
-                                                                                                        &raquo;</a>
-                                                                                                    <% } else { %>
-                                                                                                        <span
-                                                                                                            class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">Next
-                                                                                                            &raquo;</span>
-                                                                                                        <% } %>
+                                                                                                    <% if
+                                                                                                        (pagination.hasNextPage)
+                                                                                                        { %>
+                                                                                                        <a href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %><%= excludeParam %><%= searchParam %>"
+                                                                                                            class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">Next
+                                                                                                            &raquo;</a>
+                                                                                                        <% } else { %>
+                                                                                                            <span
+                                                                                                                class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">Next
+                                                                                                                &raquo;</span>
+                                                                                                            <% } %>
+                        </div>
                     </div>
-                </div>
-                <% } %>
+                    <% } %>
         </div>
     </div>
 </div>

@@ -12,20 +12,24 @@ export class LogsHttp {
       excludeLevels = [excludeLevels];
     }
 
+    // Search/filter message
+    const searchMessage = request.query.search || request.query.q || '';
+
     // Pagination params
     const page = Math.max(1, parseInt(request.query.page) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(request.query.limit) || 50));
     const offset = (page - 1) * limit;
 
     // Get total count for pagination
-    const totalCount = await this.logsRepository.getTotalLogsCount(excludeLevels);
+    const totalCount = await this.logsRepository.getTotalLogsCount(excludeLevels, searchMessage);
     const totalPages = Math.ceil(totalCount / limit);
 
     return {
-      logs: await this.logsRepository.getLatestLogs(excludeLevels, limit, offset),
+      logs: await this.logsRepository.getLatestLogs(excludeLevels, limit, offset, searchMessage),
       levels: await this.logsRepository.getLevels(),
       form: {
-        excludeLevels: excludeLevels
+        excludeLevels: excludeLevels,
+        search: searchMessage
       },
       pagination: {
         page,
