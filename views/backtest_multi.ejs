@@ -1,0 +1,142 @@
+<!-- Multi Timeframe Backtest Form -->
+<div class="p-3 md:p-4">
+    <div class="max-w-4xl mx-auto">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+            <h1 class="text-xl md:text-2xl font-semibold">Multi Timeframe Backtesting</h1>
+            <nav class="text-sm text-gray-500">
+                <a href="/" class="text-blue-600 hover:underline">Dashboard</a> /
+                <a href="/backtest" class="text-blue-600 hover:underline">Backtesting</a> /
+                Multi Timeframe
+            </nav>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded">
+            <div class="p-4 md:p-6">
+                <form action="/backtest/multi/submit" method="post" class="backtest-v2-form">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                        <div class="space-y-4">
+                            <div>
+                                <label for="form-pair" class="block font-medium mb-1">Pair</label>
+                                <select class="w-full" id="form-pair" name="pair" data-slim-select data-slim-placeholder="Search or select a pair..." required>
+                                    <option disabled selected value> -- select a pair -- </option>
+                                    <% pairs.forEach(function(pair) { %>
+                                        <option value="<%= pair.name %>"><%= pair.displayName %></option>
+                                    <% }); %>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label for="form-strategy" class="block font-medium mb-1">Strategy</label>
+                                <select class="w-full border border-gray-300 rounded px-3 py-2" id="form-strategy" name="strategy" required>
+                                    <option disabled selected value> -- select a strategy -- </option>
+                                    <% strategies.forEach(function(strategy) { %>
+                                        <option value="<%= strategy.name %>"><%= strategy.displayName %></option>
+                                    <% }); %>
+                                </select>
+                                <p class="text-xs text-gray-500 mt-1" id="strategy-description"></p>
+                            </div>
+
+                            <div>
+                                <label class="block font-medium mb-2">Timeframes (select up to 5)</label>
+                                <div class="grid grid-cols-4 gap-2" id="period-checkboxes">
+                                    <% periods.forEach(function(period) { %>
+                                        <label class="inline-flex items-center p-2 border border-gray-200 rounded cursor-pointer hover:bg-gray-50 period-checkbox">
+                                            <input type="checkbox" name="candle_periods" value="<%= period %>" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                            <span class="ml-2 text-sm"><%= period %></span>
+                                        </label>
+                                    <% }); %>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1" id="period-count">0/5 periods selected</p>
+                            </div>
+
+                            <div class="flex items-center space-x-2 py-2">
+                                <input type="checkbox" id="form-use-ai" name="use_ai" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                                <label for="form-use-ai" class="text-sm font-medium text-gray-700">Filter signals with AI (Signal Validation)</label>
+                            </div>
+
+                            <div>
+                                <label for="form-hours" class="block font-medium mb-1">Last Hours</label>
+                                <input class="w-full border border-gray-300 rounded px-3 py-2" id="form-hours" name="hours" value="168" required>
+                                <p class="text-xs text-gray-500 mt-1">Starting window until now (168 = 7 days)</p>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label for="form-initial-capital" class="block font-medium mb-1">Initial Capital</label>
+                                <input class="w-full border border-gray-300 rounded px-3 py-2" id="form-initial-capital" name="initial_capital" value="1000" required>
+                                <p class="text-xs text-gray-500 mt-1">Starting capital for profit calculations</p>
+                            </div>
+
+                            <div>
+                                <label for="form-options" class="block font-medium mb-1">Strategy Options (JSON)</label>
+                                <textarea class="w-full border border-gray-300 rounded px-3 py-2 font-mono text-sm" id="form-options" rows="6" name="options" placeholder='{"option": "value"}'></textarea>
+                                <p class="text-xs text-gray-500 mt-1">Optional: Override default strategy options</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="mt-6 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">
+                        Run Multi Timeframe Backtest
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Strategy data for dynamic updates
+const strategyData = {
+    <% strategies.forEach(function(strategy) { %>
+        '<%= strategy.name %>': {
+            description: '<%= strategy.description %>',
+            defaultOptions: <%- JSON.stringify(strategy.defaultOptions, null, 2) %>
+        },
+    <% }); %>
+};
+
+// Update strategy description and default options on selection
+document.getElementById('form-strategy').addEventListener('change', function() {
+    const data = strategyData[this.value];
+    const descEl = document.getElementById('strategy-description');
+    const optionsEl = document.getElementById('form-options');
+
+    if (data) {
+        descEl.textContent = data.description;
+        optionsEl.value = JSON.stringify(data.defaultOptions, null, 2);
+    } else {
+        descEl.textContent = '';
+        optionsEl.value = '';
+    }
+});
+
+// Period selection counter (max 5)
+const checkboxes = document.querySelectorAll('input[name="candle_periods"]');
+const countEl = document.getElementById('period-count');
+
+function updatePeriodCount() {
+    const checked = document.querySelectorAll('input[name="candle_periods"]:checked').length;
+    countEl.textContent = checked + '/5 periods selected';
+    
+    if (checked >= 5) {
+        checkboxes.forEach(cb => {
+            if (!cb.checked) {
+                cb.disabled = true;
+                cb.parentElement.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+        countEl.classList.add('text-red-600');
+    } else {
+        checkboxes.forEach(cb => {
+            cb.disabled = false;
+            cb.parentElement.classList.remove('opacity-50', 'cursor-not-allowed');
+        });
+        countEl.classList.remove('text-red-600');
+    }
+}
+
+checkboxes.forEach(cb => {
+    cb.addEventListener('change', updatePeriodCount);
+});
+</script>

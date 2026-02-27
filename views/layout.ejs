@@ -46,7 +46,7 @@
                 </button>
 
                 <!-- Desktop Navigation -->
-                <div id="nav-links" class="hidden md:flex items-center gap-1 flex-1 overflow-x-auto">
+                <div id="nav-links" class="hidden md:flex items-center gap-1 flex-1">
                     <!-- AI Status Indicator -->
                     <% if (typeof aiStatus !=='undefined' && aiStatus) { %>
                         <div class="flex items-center gap-2 mr-3" title="<%= aiStatus.description %>">
@@ -81,8 +81,21 @@
                                 class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'candles' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Candles</a>
                             <a href="/tools/ccxt-exchanges"
                                 class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">CCXT</a>
-                            <a href="/backtest"
-                                class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Backtest</a>
+                            <div class="relative" id="backtest-dropdown">
+                                <button type="button"
+                                    class="backtest-dropdown-btn px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %> flex items-center gap-1 cursor-pointer">
+                                    Backtest <i class="fas fa-caret-down text-xs"></i>
+                                </button>
+                                <div
+                                    class="backtest-dropdown-menu hidden absolute left-0 top-full bg-white border border-gray-200 rounded shadow-lg min-w-40 z-[100] py-1">
+                                    <a href="/backtest" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
+                                        <i class="fas fa-clock text-gray-400"></i> &nbsp; Single Timeframe
+                                    </a>
+                                    <a href="/backtest/multi" class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">
+                                        <i class="fas fa-columns text-gray-400"></i> &nbsp; Multi Timeframe
+                                    </a>
+                                </div>
+                            </div>
                             <a href="/logs"
                                 class="px-3 py-1.5 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">Logs</a>
                             <a href="/settings"
@@ -172,10 +185,15 @@
                                 class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'ccxt_exchanges' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
                                 <i class="fas fa-exchange w-5"></i> CCXT
                             </a>
-                            <a href="/backtest"
-                                class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
-                                <i class="fas fa-flask w-5"></i> Backtest
-                            </a>
+                            <div class="border-t border-gray-200 my-2 pt-2">
+                                <div class="px-3 py-1 text-xs text-gray-400 uppercase tracking-wide">Backtest</div>
+                                <a href="/backtest" class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'backtest' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %> pl-6">
+                                    <i class="fas fa-clock w-5"></i> Single Timeframe
+                                </a>
+                                <a href="/backtest/multi" class="block px-3 py-2 rounded text-sm text-gray-600 hover:bg-gray-100 pl-6">
+                                    <i class="fas fa-columns w-5"></i> Multi Timeframe
+                                </a>
+                            </div>
                             <a href="/logs"
                                 class="block px-3 py-2 rounded text-sm <%= typeof activePage !== 'undefined' && activePage === 'logs' ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-600 hover:bg-gray-100' %>">
                                 <i class="fas fa-file-alt w-5"></i> Logs
@@ -232,6 +250,26 @@
                 document.addEventListener('DOMContentLoaded', function () {
                     var mobileMenuBtn = document.getElementById('mobile-menu-btn');
                     var mobileNav = document.getElementById('mobile-nav');
+
+                    // Backtest dropdown toggle
+                    var backtestDropdown = document.getElementById('backtest-dropdown');
+                    var backtestBtn = document.querySelector('.backtest-dropdown-btn');
+                    var backtestMenu = document.querySelector('.backtest-dropdown-menu');
+                    
+                    if (backtestBtn && backtestMenu && backtestDropdown) {
+                        backtestBtn.addEventListener('click', function (e) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            backtestMenu.classList.toggle('hidden');
+                        });
+
+                        // Close dropdown when clicking outside
+                        document.addEventListener('click', function (e) {
+                            if (!backtestDropdown.contains(e.target)) {
+                                backtestMenu.classList.add('hidden');
+                            }
+                        });
+                    }
 
                     if (mobileMenuBtn && mobileNav) {
                         mobileMenuBtn.addEventListener('click', function (e) {

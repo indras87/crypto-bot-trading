@@ -3,7 +3,14 @@
  */
 
 import { BaseController, TemplateHelpers } from './base_controller';
-import { TypedBacktestEngine, StrategyExecutor, type BacktestResult, type BacktestSummary, type BacktestTrade, type BacktestRow } from '../modules/strategy/v2/typed_backtest';
+import {
+  TypedBacktestEngine,
+  StrategyExecutor,
+  type BacktestResult,
+  type BacktestSummary,
+  type BacktestTrade,
+  type BacktestRow
+} from '../modules/strategy/v2/typed_backtest';
 import { StrategyRegistry, type StrategyName } from '../modules/strategy/v2/strategy_registry';
 import type { Period } from '../strategy/strategy';
 import type express from 'express';
@@ -186,6 +193,84 @@ export class BacktestController extends BaseController {
         res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
       }
     });
+
+    // Multi-timeframe backtest form page
+    router.get('/backtest/multi', async (req: express.Request, res: express.Response) => {
+      res.render('backtest_multi', {
+        activePage: 'backtest',
+        title: 'Multi Timeframe Backtesting | Crypto Bot',
+        stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
+        strategies: this.getStrategies(),
+        pairs: await this.getBacktestPairs(),
+        periods: ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d']
+      });
+    });
+
+    // Multi-timeframe backtest submit
+    router.post('/backtest/multi/submit', async (req: express.Request, res: express.Response) => {
+      try {
+        const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai } = req.body;
+
+        // Parse periods (can be array or single value)
+        const periods = Array.isArray(candle_periods) ? candle_periods : [candle_periods];
+
+        // Validate max 5 periods
+        if (periods.length > 5) {
+          res.status(400).json({ error: 'Maximum 5 periods allowed' });
+          return;
+        }
+
+        if (periods.length === 0) {
+          res.status(400).json({ error: 'At least one period must be selected' });
+          return;
+        }
+
+        // Parse pair (format: "exchange.symbol")
+        const [exchange, symbol] = pair.split('.');
+
+        // Validate strategy
+        if (!this.strategyRegistry.isValidStrategy(strategy)) {
+          res.status(400).json({ error: `Invalid strategy: ${strategy}` });
+          return;
+        }
+
+        // Run backtests for each period
+        const results = await Promise.all(
+          periods.map(async (period: string) => {
+            const result = await this.runBacktest({
+              exchange,
+              symbol,
+              period: period as Period,
+              hours: parseInt(hours, 10),
+              strategy: strategy as StrategyName,
+              initialCapital: parseFloat(initial_capital) || 1000,
+              options: options ? JSON.parse(options) : undefined,
+              useAi: use_ai === 'on' || use_ai === 'true'
+            });
+
+            return {
+              period,
+              ...this.formatResultForView(result)
+            };
+          })
+        );
+
+        // Render results
+        res.render('backtest_multi_result', {
+          activePage: 'backtest',
+          title: 'Multi Timeframe Backtest Results | Crypto Bot',
+          stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
+          strategyName: strategy,
+          exchange,
+          symbol,
+          displaySymbol: buildTradingViewSymbol(exchange, symbol),
+          results
+        });
+      } catch (error) {
+        console.error('Multi-timeframe backtest error:', error);
+        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    });
   }
 
   /**
@@ -210,7 +295,8 @@ export class BacktestController extends BaseController {
    * Get available pairs for backtest dropdown
    */
   async getBacktestPairs(): Promise<BacktestV2Pair[]> {
-    return this.ccxtCandleWatchService.getWatchedPairs()
+    return this.ccxtCandleWatchService
+      .getWatchedPairs()
       .map(pair => ({
         name: `${pair.exchange}.${pair.symbol}`,
         displayName: `${pair.exchange}: ${buildTradingViewSymbol(pair.exchange, pair.symbol)}`,
