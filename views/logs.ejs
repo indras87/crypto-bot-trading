@@ -16,10 +16,14 @@
                         <span>Exclude:</span>
                         <% levels.forEach(function(level, key) { %>
                             <label class="flex items-center gap-1 cursor-pointer">
-                                <input type="checkbox" class="rounded border-gray-300" name="exclude_levels[]" value="<%= level %>" id="level_<%= key %>" onChange="this.form.submit()" <%= form.excludeLevels && form.excludeLevels.includes(level) ? 'checked' : '' %>>
-                                <span class="text-sm"><%= level %></span>
+                                <input type="checkbox" class="rounded border-gray-300" name="exclude_levels[]"
+                                    value="<%= level %>" id="level_<%= key %>" onChange="this.form.submit()"
+                                    <%=form.excludeLevels && form.excludeLevels.includes(level) ? 'checked' : '' %>>
+                                <span class="text-sm">
+                                    <%= level %>
+                                </span>
                             </label>
-                        <% }); %>
+                            <% }); %>
                     </div>
                 </form>
             </div>
@@ -27,33 +31,113 @@
             <div class="p-3 md:p-4 overflow-x-auto">
                 <table class="w-full border-collapse text-[13px]">
                     <thead>
-                    <tr>
-                        <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Level</th>
-                        <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Message</th>
-                        <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">CreatedAt</th>
-                    </tr>
+                        <tr>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Level</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Message</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">CreatedAt</th>
+                        </tr>
                     </thead>
                     <tbody>
-                    <% logs.forEach(function(log) { %>
-                        <tr class="hover:bg-gray-100">
-                            <td class="border border-gray-200 px-3 py-2">
-                                <% if (log.level === 'debug') { %>
-                                    <span class="text-gray-400"><%= log.level %></span>
-                                <% } else if (log.level === 'info') { %>
-                                    <span class="text-blue-500"><%= log.level %></span>
-                                <% } else if (log.level === 'error') { %>
-                                    <span class="text-red-600 font-bold"><%= log.level %></span>
-                                <% } %>
-                            </td>
-                            <td class="border border-gray-200 px-3 py-2 break-all"><%= log.message %></td>
-                            <td class="border border-gray-200 px-3 py-2 whitespace-nowrap">
-                                <%= formatDate(log.created_at, 'yy-m-d H:i:s') %>
-                            </td>
-                        </tr>
-                    <% }); %>
+                        <% logs.forEach(function(log) { %>
+                            <tr class="hover:bg-gray-100">
+                                <td class="border border-gray-200 px-3 py-2">
+                                    <% if (log.level==='debug' ) { %>
+                                        <span class="text-gray-400">
+                                            <%= log.level %>
+                                        </span>
+                                        <% } else if (log.level==='info' ) { %>
+                                            <span class="text-blue-500">
+                                                <%= log.level %>
+                                            </span>
+                                            <% } else if (log.level==='error' ) { %>
+                                                <span class="text-red-600 font-bold">
+                                                    <%= log.level %>
+                                                </span>
+                                                <% } %>
+                                </td>
+                                <td class="border border-gray-200 px-3 py-2 break-all">
+                                    <%= log.message %>
+                                </td>
+                                <td class="border border-gray-200 px-3 py-2 whitespace-nowrap">
+                                    <%= formatDate(log.created_at, 'yy-m-d H:i:s' ) %>
+                                </td>
+                            </tr>
+                            <% }); %>
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination -->
+            <% if (pagination && pagination.totalPages> 1) { %>
+                <div
+                    class="px-3 md:px-4 py-3 border-t border-gray-200 flex flex-col sm:flex-row items-center justify-between gap-2">
+                    <div class="text-sm text-gray-500">
+                        Showing <%= ((pagination.page - 1) * pagination.limit) + 1 %> to <%= Math.min(pagination.page *
+                                pagination.limit, pagination.totalCount) %> of <%= pagination.totalCount %> logs
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <% if (pagination.hasPrevPage) { %>
+                            <a href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
+                                class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">&laquo;
+                                Previous</a>
+                            <% } else { %>
+                                <span
+                                    class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">&laquo;
+                                    Previous</span>
+                                <% } %>
+
+                                    <% var startPage=Math.max(1, pagination.page - 2); %>
+                                        <% var endPage=Math.min(pagination.totalPages, pagination.page + 2); %>
+                                            <% if (startPage> 1) { %>
+                                                <a href="?page=1&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
+                                                    class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">1</a>
+                                                <% if (startPage> 2) { %>
+                                                    <span class="px-2 text-gray-400">...</span>
+                                                    <% } %>
+                                                        <% } %>
+
+                                                            <% for (var i=startPage; i <=endPage; i++) { %>
+                                                                <% if (i===pagination.page) { %>
+                                                                    <span
+                                                                        class="px-3 py-1 text-sm border border-blue-500 bg-blue-500 text-white rounded">
+                                                                        <%= i %>
+                                                                    </span>
+                                                                    <% } else { %>
+                                                                        <a href="?page=<%= i %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
+                                                                            class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                                            <%= i %>
+                                                                        </a>
+                                                                        <% } %>
+                                                                            <% } %>
+
+                                                                                <% if (endPage < pagination.totalPages)
+                                                                                    { %>
+                                                                                    <% if (endPage <
+                                                                                        pagination.totalPages - 1) { %>
+                                                                                        <span
+                                                                                            class="px-2 text-gray-400">...</span>
+                                                                                        <% } %>
+                                                                                            <a href="?page=<%= pagination.totalPages %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
+                                                                                                class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">
+                                                                                                <%= pagination.totalPages
+                                                                                                    %>
+                                                                                            </a>
+                                                                                            <% } %>
+
+                                                                                                <% if
+                                                                                                    (pagination.hasNextPage)
+                                                                                                    { %>
+                                                                                                    <a href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %><%= form.excludeLevels && form.excludeLevels.length > 0 ? '&exclude_levels[]=' + form.excludeLevels.join('&exclude_levels[]=') : '' %>"
+                                                                                                        class="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100">Next
+                                                                                                        &raquo;</a>
+                                                                                                    <% } else { %>
+                                                                                                        <span
+                                                                                                            class="px-3 py-1 text-sm border border-gray-300 rounded text-gray-400 cursor-not-allowed">Next
+                                                                                                            &raquo;</span>
+                                                                                                        <% } %>
+                    </div>
+                </div>
+                <% } %>
         </div>
     </div>
 </div>
