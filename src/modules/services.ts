@@ -76,6 +76,7 @@ import { MultiIndicator } from '../strategy/strategies/multi_indicator';
 import { AiPowerSar } from '../strategy/strategies/ai_power_sar';
 import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
 import { MultiIndicatorTA } from '../strategy/strategies/multi_indicator_ta';
+import { SmcRsiDivergence } from '../strategy/strategies/smc_rsi_divergence/smc_rsi_divergence';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -633,7 +634,8 @@ const services: Services = {
       MultiIndicator,
       AiPowerSar,
       ParabolicSarAi,
-      MultiIndicatorTA
+      MultiIndicatorTA,
+      SmcRsiDivergence
     ]));
   },
 
