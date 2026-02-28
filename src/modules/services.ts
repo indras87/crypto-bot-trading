@@ -12,7 +12,7 @@ import { Telegram } from '../notify/telegram';
 
 import { Ta } from './ta';
 
-import { SignalRepository, CandlestickRepository } from '../repository';
+import { SignalRepository, CandlestickRepository, PositionHistoryRepository } from '../repository';
 import { StrategyExecutor } from './strategy/v2/typed_backtest';
 
 import { Trade } from './trade';
@@ -72,11 +72,10 @@ import { PivotReversalStrategy } from '../strategy/strategies/pivot_reversal_str
 import { Trader } from '../strategy/strategies/trader';
 import { Noop as NoopStrategy } from '../strategy/strategies/noop';
 import { Survival } from '../strategy/strategies/survival';
-import { MultiIndicator } from '../strategy/strategies/multi_indicator';
 import { AiPowerSar } from '../strategy/strategies/ai_power_sar';
 import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
-import { MultiIndicatorTA } from '../strategy/strategies/multi_indicator_ta';
 import { SmcRsiDivergence } from '../strategy/strategies/smc_rsi_divergence/smc_rsi_divergence';
+import { SmcSRZones } from '../strategy/strategies/smc_sr_zones';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -135,6 +134,7 @@ let candleStickImporter: CandleImporter;
 
 let signalRepository: SignalRepository;
 let candlestickRepository: CandlestickRepository;
+let positionHistoryRepository: PositionHistoryRepository;
 
 let strategyExecutor: StrategyExecutor;
 
@@ -171,6 +171,7 @@ export interface Services {
   getTa(): Ta;
   getCandleImporter(): CandleImporter;
   getSignalRepository(): SignalRepository;
+  getPositionHistoryRepository(): PositionHistoryRepository;
   getCandlestickRepository(): CandlestickRepository;
   getEventEmitter(): events.EventEmitter;
   getLogger(): Logger;
@@ -278,6 +279,14 @@ const services: Services = {
     }
 
     return (signalRepository = new SignalRepository(this.getDatabase()));
+  },
+
+  getPositionHistoryRepository: function (): PositionHistoryRepository {
+    if (positionHistoryRepository) {
+      return positionHistoryRepository;
+    }
+
+    return (positionHistoryRepository = new PositionHistoryRepository(this.getDatabase()));
   },
 
   getCandlestickRepository: function (): CandlestickRepository {
@@ -519,7 +528,7 @@ const services: Services = {
   },
 
   getTradesController: function (templateHelpers: any): TradesController {
-    return new TradesController(templateHelpers, this.getProfileService());
+    return new TradesController(templateHelpers, this.getProfileService(), this.getPositionHistoryRepository());
   },
 
   getOrdersController: function (templateHelpers: any): OrdersController {
@@ -637,11 +646,10 @@ const services: Services = {
       Trader,
       NoopStrategy,
       Survival,
-      MultiIndicator,
       AiPowerSar,
       ParabolicSarAi,
-      MultiIndicatorTA,
-      SmcRsiDivergence
+      SmcRsiDivergence,
+      SmcSRZones
     ]));
   },
 
@@ -658,7 +666,14 @@ const services: Services = {
       return botRunner;
     }
 
-    return (botRunner = new BotRunner(this.getProfileService(), this.getStrategyExecutor(), this.getNotifier(), this.getSignalRepository(), this.getLogger()));
+    return (botRunner = new BotRunner(
+      this.getProfileService(),
+      this.getStrategyExecutor(),
+      this.getNotifier(),
+      this.getSignalRepository(),
+      this.getPositionHistoryRepository(),
+      this.getLogger()
+    ));
   },
 
   getBinancePriceService: function (): BinancePriceService {

@@ -1,6 +1,6 @@
 import { Notify } from '../notify/notify';
 import { Logger } from '../modules/services';
-import { SignalRepository } from '../repository';
+import { SignalRepository, PositionHistoryRepository } from '../repository';
 import { ProfileService } from '../profile/profile_service';
 import { StrategyExecutor } from '../modules/strategy/v2/typed_backtest';
 import type { Bot, Profile } from '../profile/types';
@@ -37,6 +37,7 @@ export class BotRunner {
     private readonly strategyExecutor: StrategyExecutor,
     private readonly notifier: Notify,
     private readonly signalRepository: SignalRepository,
+    private readonly positionHistoryRepository: PositionHistoryRepository,
     private readonly logger: Logger
   ) {}
 
@@ -101,17 +102,18 @@ export class BotRunner {
     const isWatchOnly = bot.mode === 'watch';
 
     // Execute strategy
-    const signal = await this.strategyExecutor.executeStrategy(
-      bot.strategy,
-      profile.exchange,
-      bot.pair,
-      bot.interval,
-      bot.options ?? {}
-    );
+    const signal = await this.strategyExecutor.executeStrategy(bot.strategy, profile.exchange, bot.pair, bot.interval, bot.options ?? {});
 
     if (!signal) return;
 
-    this.signalRepository.insertSignal(profile.exchange, bot.pair, { price: marketData.ask, strategy: bot.strategy }, signal, bot.strategy);
+    this.signalRepository.insertSignal(
+      profile.exchange,
+      bot.pair,
+      { price: marketData.ask, strategy: bot.strategy, interval: bot.interval },
+      signal,
+      bot.strategy,
+      bot.interval
+    );
 
     this.notifier.send(`[${signal} (${bot.strategy})] ${profile.exchange}:${bot.pair} @ ${marketData.ask}`);
 
@@ -134,35 +136,65 @@ export class BotRunner {
     switch (signal) {
       case 'close': {
         if (isFuturesPair(bot.pair)) {
-          await this.profileService.closePosition(profile.id, bot.pair, 'market');
+          const closeResult = await this.profileService.closePosition(profile.id, bot.pair, 'market');
+          const exitPrice = closeResult?.price || 0;
+          const contracts = Math.abs(closeResult?.amount || 0);
+          const exitValue = exitPrice * contracts;
+          const entryValue = bot.capital;
+          const realizedPnl = exitValue - entryValue;
+
+          this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
         } else {
           // Spot: sell the full free balance of the base currency
           const baseCurrency = bot.pair.split('/')[0];
           const balances = await this.profileService.fetchBalances(profile);
           const base = balances.find(b => b.currency === baseCurrency);
           if (base && base.free > 0) {
-            await this.profileService.placeOrder(profile.id, {
+            const orderResult = await this.profileService.placeOrder(profile.id, {
               pair: bot.pair,
               side: 'sell',
               type: 'market',
               amount: base.free,
               isQuoteCurrency: false
             });
+            const exitPrice = orderResult.price || 0;
+            const exitValue = exitPrice * base.free;
+            const entryValue = bot.capital;
+            const realizedPnl = exitValue - entryValue;
+
+            this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
           }
         }
         break;
       }
 
       case 'long':
-      case 'short':
-        await this.profileService.placeOrder(profile.id, {
+      case 'short': {
+        const orderResult = await this.profileService.placeOrder(profile.id, {
           pair: bot.pair,
           side: signal === 'long' ? 'buy' : 'sell',
           type: 'market',
           amount: bot.capital,
           isQuoteCurrency: true
         });
+
+        const entryPrice = orderResult.price || 0;
+
+        this.positionHistoryRepository.openPosition({
+          profile_id: profile.id,
+          profile_name: profile.name,
+          bot_id: bot.id,
+          bot_name: bot.name,
+          exchange: profile.exchange,
+          symbol: bot.pair,
+          side: signal,
+          entry_price: entryPrice,
+          contracts: orderResult.amount || bot.capital / entryPrice,
+          opened_at: Math.floor(Date.now() / 1000),
+          status: 'open'
+        });
         break;
+      }
     }
   }
 

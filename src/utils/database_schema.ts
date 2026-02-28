@@ -68,10 +68,33 @@ CREATE TABLE IF NOT EXISTS signals (
   options    TEXT         NULL,
   side       VARCHAR(50)  NULL,
   strategy   VARCHAR(50)  NULL,
+  interval   VARCHAR(20)  NULL,
   income_at  BIGINT       NULL,
   state      VARCHAR(50)  NULL
 );
 CREATE INDEX IF NOT EXISTS symbol_idx ON signals (exchange, symbol);
+
+CREATE TABLE IF NOT EXISTS position_history (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id      VARCHAR(64)  NULL,
+  profile_name    VARCHAR(255) NULL,
+  bot_id          VARCHAR(64)  NULL,
+  bot_name        VARCHAR(255) NULL,
+  exchange        VARCHAR(255) NULL,
+  symbol          VARCHAR(255) NULL,
+  side            VARCHAR(50)  NULL,
+  entry_price     REAL         NULL,
+  contracts       REAL         NULL,
+  opened_at       BIGINT       NULL,
+  closed_at       BIGINT       NULL,
+  exit_price      REAL         NULL,
+  realized_pnl    REAL         NULL,
+  fee             REAL         NULL,
+  status          VARCHAR(20)  NULL
+);
+CREATE INDEX IF NOT EXISTS pos_history_profile ON position_history (profile_id);
+CREATE INDEX IF NOT EXISTS pos_history_symbol ON position_history (symbol);
+CREATE INDEX IF NOT EXISTS pos_history_status ON position_history (status);
 
 CREATE TABLE IF NOT EXISTS logs (
   uuid       VARCHAR(64) PRIMARY KEY,

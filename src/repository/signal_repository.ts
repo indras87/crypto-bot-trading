@@ -15,9 +15,9 @@ export class SignalRepository {
     return stmt.all(since);
   }
 
-  insertSignal(exchange: string, symbol: string, options: Record<string, any>, side: string, strategy: string): void {
+  insertSignal(exchange: string, symbol: string, options: Record<string, any>, side: string, strategy: string, interval?: string): void {
     const stmt = this.db.prepare(
-      'INSERT INTO signals(exchange, symbol, options, side, strategy, income_at) VALUES ($exchange, $symbol, $options, $side, $strategy, $income_at)'
+      'INSERT INTO signals(exchange, symbol, options, side, strategy, interval, income_at) VALUES ($exchange, $symbol, $options, $side, $strategy, $interval, $income_at)'
     );
 
     stmt.run({
@@ -26,6 +26,7 @@ export class SignalRepository {
       options: JSON.stringify(options || {}),
       side: side,
       strategy: strategy,
+      interval: interval || null,
       income_at: Math.floor(Date.now() / 1000)
     });
   }

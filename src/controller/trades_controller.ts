@@ -1,12 +1,14 @@
 import { BaseController, TemplateHelpers } from './base_controller';
 import { ProfileService } from '../profile/profile_service';
 import { OrderInfo, PositionInfo } from '../profile/types';
+import { PositionHistoryRepository } from '../repository/position_history_repository';
 import express from 'express';
 
 export class TradesController extends BaseController {
   constructor(
     templateHelpers: TemplateHelpers,
-    private profileService: ProfileService
+    private profileService: ProfileService,
+    private positionHistoryRepository: PositionHistoryRepository
   ) {
     super(templateHelpers);
   }
@@ -63,12 +65,28 @@ export class TradesController extends BaseController {
 
     // Sort by timestamp descending
     openOrders.sort((a, b) => (b.order.timestamp || 0) - (a.order.timestamp || 0));
+
+    // Get position history from database
+    const positionHistory = this.positionHistoryRepository.getOpenPositions();
+
+    // Merge position history with positions from exchange
+    const mergedPositions = profilePositions.map(p => {
+      const history = positionHistory.find(h => h.profile_id === p.profileId && h.symbol === p.position.symbol && h.status === 'open');
+      return {
+        ...p,
+        botName: history?.bot_name || '-',
+        botId: history?.bot_id || '-',
+        strategy: history ? 'Bot' : '-',
+        interval: history ? '-' : '-'
+      };
+    });
+
     // Sort profile positions by symbol
-    profilePositions.sort((a, b) => a.position.symbol.localeCompare(b.position.symbol));
+    mergedPositions.sort((a, b) => a.position.symbol.localeCompare(b.position.symbol));
 
     return {
       openOrders,
-      profilePositions
+      profilePositions: mergedPositions
     };
   }
 

@@ -16,6 +16,7 @@
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Symbol</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Side</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Strategy</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Interval</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Time</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">State</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-3 py-2">Options</th>
@@ -36,6 +37,7 @@
                             <% } %>
                         </td>
                         <td class="border border-gray-200 px-3 py-2"><%= signal.strategy %></td>
+                        <td class="border border-gray-200 px-3 py-2"><%= signal.interval || '-' %></td>
                         <td class="border border-gray-200 px-3 py-2 whitespace-nowrap">
                             <%= formatDate(signal.income_at, 'd.m.y H:i') %>
                         </td>
