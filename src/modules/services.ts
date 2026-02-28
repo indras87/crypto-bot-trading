@@ -75,6 +75,7 @@ import { Survival } from '../strategy/strategies/survival';
 import { MultiIndicator } from '../strategy/strategies/multi_indicator';
 import { AiPowerSar } from '../strategy/strategies/ai_power_sar';
 import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
+import { MultiIndicatorTA } from '../strategy/strategies/multi_indicator_ta';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -631,7 +632,8 @@ const services: Services = {
       Survival,
       MultiIndicator,
       AiPowerSar,
-      ParabolicSarAi
+      ParabolicSarAi,
+      MultiIndicatorTA
     ]));
   },
 
