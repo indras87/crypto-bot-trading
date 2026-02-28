@@ -229,7 +229,7 @@ const services: Services = {
 
     // Load config if exists, otherwise use empty config
     try {
-      config = JSON.parse(fs.readFileSync(`${parameters.projectDir}/var/conf.json`, 'utf8'));
+      config = JSON.parse(fs.readFileSync(`${parameters.projectDir}/var/config.json`, 'utf8'));
     } catch {
       config = {};
     }
@@ -528,7 +528,7 @@ const services: Services = {
   },
 
   getTradesController: function (templateHelpers: any): TradesController {
-    return new TradesController(templateHelpers, this.getProfileService(), this.getPositionHistoryRepository());
+    return new TradesController(templateHelpers, this.getProfileService());
   },
 
   getOrdersController: function (templateHelpers: any): OrdersController {
