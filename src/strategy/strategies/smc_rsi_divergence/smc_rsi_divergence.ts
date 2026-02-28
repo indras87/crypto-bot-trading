@@ -391,12 +391,14 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
   /**
    * Detect RSI Divergence.
    *
-   * Improved approach: Find the most significant divergence by comparing
-   * current candle against the lowest price point (for bullish) or
-   * highest price point (for bearish) in the lookback window.
+   * Compares current candle against each previous candle in the lookback window.
+   * Finds the most significant divergence.
    *
-   * Bullish Divergence: Price makes Lower Low but RSI makes Higher Low
-   * Bearish Divergence: Price makes Higher High but RSI makes Lower High
+   * Bullish Divergence: Current price LOWER than a previous price (Lower Low),
+   *                     but current RSI HIGHER than RSI at that previous point (Higher Low)
+   *
+   * Bearish Divergence: Current price HIGHER than a previous price (Higher High),
+   *                     but current RSI LOWER than RSI at that previous point (Lower High)
    */
   private detectDivergence(prices: number[], rsiValues: number[], lookback: number): DivergenceResult {
     if (prices.length < 3 || rsiValues.length < 3) {
@@ -407,56 +409,46 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     const recentPrices = prices.slice(-n);
     const recentRsi = rsiValues.slice(-n);
 
+    // Current candle is the LAST element
     const currentPrice = recentPrices[recentPrices.length - 1];
     const currentRsi = recentRsi[recentRsi.length - 1];
 
-    // Look at the window EXCLUDING the current candle
-    const windowPrices = recentPrices.slice(0, -1);
-    const windowRsi = recentRsi.slice(0, -1);
-
-    if (windowPrices.length === 0) {
-      return { hasBullish: false, hasBearish: false, bullishStrength: 0, bearishStrength: 0 };
-    }
-
-    // Find the lowest price point in the window (for bullish divergence)
-    let lowestPriceIdx = 0;
-    for (let i = 1; i < windowPrices.length; i++) {
-      if (windowPrices[i] < windowPrices[lowestPriceIdx]) {
-        lowestPriceIdx = i;
-      }
-    }
-
-    // Find the highest price point in the window (for bearish divergence)
-    let highestPriceIdx = 0;
-    for (let i = 1; i < windowPrices.length; i++) {
-      if (windowPrices[i] > windowPrices[highestPriceIdx]) {
-        highestPriceIdx = i;
-      }
-    }
-
-    const lowestPrice = windowPrices[lowestPriceIdx];
-    const lowestRsi = windowRsi[lowestPriceIdx];
-    const highestPrice = windowPrices[highestPriceIdx];
-    const highestRsi = windowRsi[highestPriceIdx];
-
-    // Bullish Divergence: current price < lowest in window, but current RSI > RSI at that lowest point
     let hasBullish = false;
-    let bullishStrength = 0;
-    if (currentPrice <= lowestPrice && currentRsi > lowestRsi) {
-      const priceDrop = lowestPrice > 0 ? (lowestPrice - currentPrice) / lowestPrice : 0;
-      const rsiRise = (currentRsi - lowestRsi) / 100;
-      bullishStrength = priceDrop + rsiRise;
-      hasBullish = true;
-    }
-
-    // Bearish Divergence: current price > highest in window, but current RSI < RSI at that highest point
     let hasBearish = false;
+    let bullishStrength = 0;
     let bearishStrength = 0;
-    if (currentPrice >= highestPrice && currentRsi < highestRsi) {
-      const priceRise = highestPrice > 0 ? (currentPrice - highestPrice) / highestPrice : 0;
-      const rsiDrop = (highestRsi - currentRsi) / 100;
-      bearishStrength = priceRise + rsiDrop;
-      hasBearish = true;
+
+    // Compare current candle against each previous candle in the window
+    // Skip the last element (current candle) and the very first (too old)
+    for (let i = 0; i < recentPrices.length - 1; i++) {
+      const prevPrice = recentPrices[i];
+      const prevRsi = recentRsi[i];
+
+      // Bullish Divergence: current price LOWER than previous (Lower Low)
+      //                     but current RSI HIGHER than previous RSI (Higher Low)
+      if (currentPrice < prevPrice && currentRsi > prevRsi) {
+        const priceDrop = prevPrice > 0 ? (prevPrice - currentPrice) / prevPrice : 0;
+        const rsiRise = (currentRsi - prevRsi) / 100;
+        const strength = priceDrop + rsiRise;
+
+        if (strength > bullishStrength) {
+          bullishStrength = strength;
+          hasBullish = true;
+        }
+      }
+
+      // Bearish Divergence: current price HIGHER than previous (Higher High)
+      //                     but current RSI LOWER than previous RSI (Lower High)
+      if (currentPrice > prevPrice && currentRsi < prevRsi) {
+        const priceRise = prevPrice > 0 ? (currentPrice - prevPrice) / prevPrice : 0;
+        const rsiDrop = (prevRsi - currentRsi) / 100;
+        const strength = priceRise + rsiDrop;
+
+        if (strength > bearishStrength) {
+          bearishStrength = strength;
+          hasBearish = true;
+        }
+      }
     }
 
     return { hasBullish, hasBearish, bullishStrength, bearishStrength };
