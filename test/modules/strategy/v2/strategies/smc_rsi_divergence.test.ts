@@ -42,41 +42,34 @@ describe('#SmcRsiDivergence', () => {
       assert.equal(s.getDescription(), 'SMC + RSI Divergence - Smart Money Concepts with RSI divergence for reversal entries');
 
       const opts = s.getOptions();
-      assert.equal(opts.ema_fast_length, 21);
-      assert.equal(opts.ema_slow_length, 50);
+      assert.equal(opts.ema_fast_length, 50);
+      assert.equal(opts.ema_slow_length, 200);
       assert.equal(opts.rsi_length, 14);
-      assert.equal(opts.rsi_ma_length, 9);
+      assert.equal(opts.rsi_ma_length, 14);
       assert.equal(opts.atr_length, 14);
-      assert.equal(opts.pivot_left, 3);
-      assert.equal(opts.pivot_right, 2);
+      assert.equal(opts.pivot_left, 5);
+      assert.equal(opts.pivot_right, 3);
       assert.equal(opts.divergence_lookback, 8);
-      assert.equal(opts.zone_atr_multiplier, 2.5);
-      assert.equal(opts.atr_sl_multiplier, 0.8);
-      assert.equal(opts.rr_ratio, 2);
-      assert.equal(opts.require_engulfing, false);
-      assert.equal(opts.min_divergence_strength, 0.001);
-      assert.equal(opts.require_rsi_ma, true);
+      assert.equal(opts.zone_atr_multiplier, 1.5);
+      assert.equal(opts.atr_sl_multiplier, 0.5);
+      assert.equal(opts.rr_ratio, 3);
     });
 
     it('creates strategy with custom options', () => {
       const s = new SmcRsiDivergence({
-        ema_fast_length: 9,
-        ema_slow_length: 21,
-        rsi_length: 7,
-        rr_ratio: 1.5,
-        require_engulfing: true,
-        require_rsi_ma: false
+        ema_fast_length: 21,
+        ema_slow_length: 100,
+        rsi_length: 21,
+        rr_ratio: 2
       });
 
       const opts = s.getOptions();
-      assert.equal(opts.ema_fast_length, 9);
-      assert.equal(opts.ema_slow_length, 21);
-      assert.equal(opts.rsi_length, 7);
-      assert.equal(opts.rr_ratio, 1.5);
-      assert.equal(opts.require_engulfing, true);
-      assert.equal(opts.require_rsi_ma, false);
+      assert.equal(opts.ema_fast_length, 21);
+      assert.equal(opts.ema_slow_length, 100);
+      assert.equal(opts.rsi_length, 21);
+      assert.equal(opts.rr_ratio, 2);
       // Defaults preserved
-      assert.equal(opts.rsi_ma_length, 9);
+      assert.equal(opts.rsi_ma_length, 14);
       assert.equal(opts.atr_length, 14);
     });
 

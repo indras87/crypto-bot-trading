@@ -6,22 +6,22 @@
  * Core Concepts:
  * 1. Supply & Demand Zones: Identified via Pivot Points High/Low
  * 2. RSI Divergence: Detects momentum weakness before entry
- * 3. Trend Filter: EMA fast vs EMA slow as trend proxy
- * 4. Candle Confirmation: Bullish/Bearish candle (or optional Engulfing)
+ * 3. Trend Filter: EMA 50 vs EMA 200 as H1 trend proxy
+ * 4. Engulfing Candle: Confirmation pattern at zone
  * 5. RSI Based MA: RSI vs its own SMA as momentum filter
  *
  * Entry Logic:
- * LONG: Uptrend (EMA fast > EMA slow) + Price near Demand Zone + Bullish RSI Divergence
- *       + Bullish candle confirmation + RSI > RSI-MA
- * SHORT: Downtrend (EMA fast < EMA slow) + Price near Supply Zone + Bearish RSI Divergence
- *        + Bearish candle confirmation + RSI < RSI-MA
+ * LONG: Uptrend (EMA50 > EMA200) + Price near Demand Zone + Bullish RSI Divergence
+ *       + Bullish Engulfing + RSI > RSI-MA
+ * SHORT: Downtrend (EMA50 < EMA200) + Price near Supply Zone + Bearish RSI Divergence
+ *        + Bearish Engulfing + RSI < RSI-MA
  *
  * Exit Logic:
  * - Auto close when trend reverses (EMA cross)
  * - SL/TP calculated via ATR (stop_loss / take_profit options in percent)
  *
- * Recommended Timeframes: 5m, 15m, 30m, 1h
- * Risk:Reward: Configurable (default 2:1)
+ * Recommended Timeframes: 15m, 30m, 1h
+ * Risk:Reward: Minimum 1:3
  */
 
 import strategy, { StrategyBase, TypedStrategyContext, StrategySignal, type TypedIndicatorDefinition, type PivotPointResult } from '../../strategy';
@@ -29,9 +29,9 @@ import strategy, { StrategyBase, TypedStrategyContext, StrategySignal, type Type
 // ============== Strategy Options ==============
 
 export interface SmcRsiDivergenceOptions {
-  /** EMA fast period for trend detection */
+  /** EMA fast period for trend detection (proxy for H1 short-term trend) */
   ema_fast_length?: number;
-  /** EMA slow period for trend detection */
+  /** EMA slow period for trend detection (proxy for H1 long-term trend) */
   ema_slow_length?: number;
   /** RSI period */
   rsi_length?: number;
@@ -45,7 +45,7 @@ export interface SmcRsiDivergenceOptions {
   pivot_right?: number;
   /** Number of candles to look back for divergence detection */
   divergence_lookback?: number;
-  /** Zone proximity threshold as multiplier of ATR */
+  /** Zone proximity threshold as % of ATR (how close price must be to zone) */
   zone_atr_multiplier?: number;
   /** ATR multiplier for stop loss buffer below/above swing */
   atr_sl_multiplier?: number;
@@ -55,36 +55,6 @@ export interface SmcRsiDivergenceOptions {
   stop_loss?: number;
   /** Take profit percent (overrides RR-based TP if set) */
   take_profit?: number;
-  /**
-   * Require strict Engulfing pattern for entry confirmation.
-   * false (default): only requires bullish/bearish candle direction
-   * true: requires full engulfing pattern (more selective)
-   */
-  require_engulfing?: boolean;
-  /**
-   * Minimum divergence strength (0-1) to trigger entry.
-   * Lower = more signals, higher = more selective.
-   * Default: 0.005
-   */
-  min_divergence_strength?: number;
-  /**
-   * Require RSI-MA filter (RSI above/below its own SMA).
-   * true (default): RSI must be above/below RSI-MA
-   * false: skip RSI-MA filter for more signals
-   */
-  require_rsi_ma?: boolean;
-  /**
-   * RSI level threshold for LONG entry.
-   * RSI must be BELOW this level to enter long (oversold area).
-   * Default: 50 (no restriction). Set to 45 or 40 for stricter filter.
-   */
-  rsi_long_max?: number;
-  /**
-   * RSI level threshold for SHORT entry.
-   * RSI must be ABOVE this level to enter short (overbought area).
-   * Default: 50 (no restriction). Set to 55 or 60 for stricter filter.
-   */
-  rsi_short_min?: number;
 }
 
 // ============== Indicator Definition ==============
@@ -103,7 +73,7 @@ export type SmcRsiDivergenceIndicators = {
 interface DivergenceResult {
   hasBullish: boolean;
   hasBearish: boolean;
-  bullishStrength: number;
+  bullishStrength: number; // 0-1, higher = stronger divergence
   bearishStrength: number;
 }
 
@@ -114,9 +84,7 @@ interface ZoneResult {
   nearestSupplyLevel: number | null;
 }
 
-interface CandleConfirmResult {
-  isBullish: boolean;
-  isBearish: boolean;
+interface EngulfingResult {
   isBullishEngulfing: boolean;
   isBearishEngulfing: boolean;
 }
@@ -155,12 +123,11 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
 
     // ── Minimum data check ────────────────────────────────────────────────────
     const rsiMaPeriod = this.options.rsi_ma_length!;
-    const minRsiData = Math.max(this.options.divergence_lookback!, rsiMaPeriod);
 
     if (
       emaFastArr.length < 5 ||
       emaSlowArr.length < 5 ||
-      rsiArr.length < minRsiData ||
+      rsiArr.length < Math.max(this.options.divergence_lookback!, rsiMaPeriod) ||
       atrArr.length < 3 ||
       candlesArr.length < 3
     ) {
@@ -174,6 +141,7 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     const atr = atrArr[atrArr.length - 1];
 
     // ── RSI-Based MA: Calculate SMA of RSI values manually ───────────────────
+    // This is the "RSI Based MA" filter — SMA applied to RSI values, not price
     const rsiMa = this.calculateRsiMa(rsiArr, rsiMaPeriod);
     if (rsiMa === null) {
       return;
@@ -217,30 +185,12 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     const recentRsi = rsiArr.slice(-this.options.divergence_lookback! - 2);
     const divergence = this.detectDivergence(prices, recentRsi, this.options.divergence_lookback!);
 
-    // ── Candle Confirmation ───────────────────────────────────────────────────
-    const candleConfirm = this.detectCandleConfirmation(candlesArr);
+    // ── Engulfing Pattern Detection ───────────────────────────────────────────
+    const engulfing = this.detectEngulfing(candlesArr);
 
     // ── RSI Based MA Filter ───────────────────────────────────────────────────
     const rsiAboveMa = rsi > rsiMa;
     const rsiBelowMa = rsi < rsiMa;
-
-    // ── Determine confirmation based on options ───────────────────────────────
-    const requireEngulfing = this.options.require_engulfing ?? false;
-    const requireRsiMa = this.options.require_rsi_ma ?? true;
-    const minDivStrength = this.options.min_divergence_strength ?? 0.005;
-
-    const longCandleOk = requireEngulfing ? candleConfirm.isBullishEngulfing : candleConfirm.isBullish;
-    const shortCandleOk = requireEngulfing ? candleConfirm.isBearishEngulfing : candleConfirm.isBearish;
-    const longRsiMaOk = requireRsiMa ? rsiAboveMa : true;
-    const shortRsiMaOk = requireRsiMa ? rsiBelowMa : true;
-
-    // ── RSI Level Filter (oversold/overbought zone) ───────────────────────────
-    // For LONG: RSI should be in oversold area (below rsi_long_max)
-    // For SHORT: RSI should be in overbought area (above rsi_short_min)
-    const rsiLongMax = this.options.rsi_long_max ?? 50;
-    const rsiShortMin = this.options.rsi_short_min ?? 50;
-    const rsiLongLevelOk = rsi <= rsiLongMax;
-    const rsiShortLevelOk = rsi >= rsiShortMin;
 
     // ── Debug Output ──────────────────────────────────────────────────────────
     signal.debugAll({
@@ -257,25 +207,18 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       supply_level: zoneResult.nearestSupplyLevel?.toFixed(2) ?? 'none',
       bullish_divergence: divergence.hasBullish,
       bearish_divergence: divergence.hasBearish,
-      div_bull_strength: divergence.bullishStrength.toFixed(4),
-      div_bear_strength: divergence.bearishStrength.toFixed(4),
-      bullish_candle: candleConfirm.isBullish,
-      bearish_candle: candleConfirm.isBearish,
-      bullish_engulfing: candleConfirm.isBullishEngulfing,
-      bearish_engulfing: candleConfirm.isBearishEngulfing,
-      rsi_long_level_ok: rsiLongLevelOk,
-      rsi_short_level_ok: rsiShortLevelOk
+      bullish_engulfing: engulfing.isBullishEngulfing,
+      bearish_engulfing: engulfing.isBearishEngulfing
     });
 
     // ── LONG Entry ────────────────────────────────────────────────────────────
+    // Conditions: Uptrend + In Demand Zone + Bullish RSI Divergence + Bullish Engulfing + RSI > RSI-MA
     if (
       isUptrend &&
       zoneResult.inDemandZone &&
       divergence.hasBullish &&
-      divergence.bullishStrength >= minDivStrength &&
-      longCandleOk &&
-      longRsiMaOk &&
-      rsiLongLevelOk
+      engulfing.isBullishEngulfing &&
+      rsiAboveMa
     ) {
       const stopLossPrice = this.calculateLongStopLoss(price, atr, zoneResult.nearestDemandLevel);
       const takeProfitPrice = this.calculateLongTakeProfit(price, stopLossPrice);
@@ -287,8 +230,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         take_profit: takeProfitPrice.toFixed(2),
         sl_distance_pct: (((price - stopLossPrice) / price) * 100).toFixed(2),
         tp_distance_pct: (((takeProfitPrice - price) / price) * 100).toFixed(2),
-        divergence_strength: divergence.bullishStrength.toFixed(4),
-        confluences: `uptrend+demand_zone+bullish_divergence+${requireEngulfing ? 'engulfing' : 'bullish_candle'}${requireRsiMa ? '+rsi_above_ma' : ''}+rsi_level`
+        divergence_strength: divergence.bullishStrength.toFixed(2),
+        confluences: 'uptrend+demand_zone+bullish_divergence+bullish_engulfing+rsi_above_ma'
       });
 
       signal.goLong();
@@ -296,14 +239,13 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     }
 
     // ── SHORT Entry ───────────────────────────────────────────────────────────
+    // Conditions: Downtrend + In Supply Zone + Bearish RSI Divergence + Bearish Engulfing + RSI < RSI-MA
     if (
       isDowntrend &&
       zoneResult.inSupplyZone &&
       divergence.hasBearish &&
-      divergence.bearishStrength >= minDivStrength &&
-      shortCandleOk &&
-      shortRsiMaOk &&
-      rsiShortLevelOk
+      engulfing.isBearishEngulfing &&
+      rsiBelowMa
     ) {
       const stopLossPrice = this.calculateShortStopLoss(price, atr, zoneResult.nearestSupplyLevel);
       const takeProfitPrice = this.calculateShortTakeProfit(price, stopLossPrice);
@@ -315,8 +257,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         take_profit: takeProfitPrice.toFixed(2),
         sl_distance_pct: (((stopLossPrice - price) / price) * 100).toFixed(2),
         tp_distance_pct: (((price - takeProfitPrice) / price) * 100).toFixed(2),
-        divergence_strength: divergence.bearishStrength.toFixed(4),
-        confluences: `downtrend+supply_zone+bearish_divergence+${requireEngulfing ? 'engulfing' : 'bearish_candle'}${requireRsiMa ? '+rsi_below_ma' : ''}+rsi_level`
+        divergence_strength: divergence.bearishStrength.toFixed(2),
+        confluences: 'downtrend+supply_zone+bearish_divergence+bearish_engulfing+rsi_below_ma'
       });
 
       signal.goShort();
@@ -324,32 +266,24 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     }
 
     // ── Log rejection reason ──────────────────────────────────────────────────
-    if (isUptrend) {
-      if (!zoneResult.inDemandZone) {
-        signal.debugAll({ long_rejected: 'not_in_demand_zone' });
-      } else if (!divergence.hasBullish || divergence.bullishStrength < minDivStrength) {
-        signal.debugAll({ long_rejected: `no_bullish_divergence (strength=${divergence.bullishStrength.toFixed(4)})` });
-      } else if (!longCandleOk) {
-        signal.debugAll({ long_rejected: requireEngulfing ? 'no_bullish_engulfing' : 'no_bullish_candle' });
-      } else if (!longRsiMaOk) {
-        signal.debugAll({ long_rejected: 'rsi_below_ma' });
-      } else if (!rsiLongLevelOk) {
-        signal.debugAll({ long_rejected: `rsi_too_high (${rsi.toFixed(1)} > ${rsiLongMax})` });
-      }
+    if (isUptrend && !zoneResult.inDemandZone) {
+      signal.debugAll({ long_rejected: 'not_in_demand_zone' });
+    } else if (isUptrend && zoneResult.inDemandZone && !divergence.hasBullish) {
+      signal.debugAll({ long_rejected: 'no_bullish_divergence' });
+    } else if (isUptrend && zoneResult.inDemandZone && divergence.hasBullish && !engulfing.isBullishEngulfing) {
+      signal.debugAll({ long_rejected: 'no_bullish_engulfing' });
+    } else if (isUptrend && zoneResult.inDemandZone && divergence.hasBullish && engulfing.isBullishEngulfing && !rsiAboveMa) {
+      signal.debugAll({ long_rejected: 'rsi_below_ma' });
     }
 
-    if (isDowntrend) {
-      if (!zoneResult.inSupplyZone) {
-        signal.debugAll({ short_rejected: 'not_in_supply_zone' });
-      } else if (!divergence.hasBearish || divergence.bearishStrength < minDivStrength) {
-        signal.debugAll({ short_rejected: `no_bearish_divergence (strength=${divergence.bearishStrength.toFixed(4)})` });
-      } else if (!shortCandleOk) {
-        signal.debugAll({ short_rejected: requireEngulfing ? 'no_bearish_engulfing' : 'no_bearish_candle' });
-      } else if (!shortRsiMaOk) {
-        signal.debugAll({ short_rejected: 'rsi_above_ma' });
-      } else if (!rsiShortLevelOk) {
-        signal.debugAll({ short_rejected: `rsi_too_low (${rsi.toFixed(1)} < ${rsiShortMin})` });
-      }
+    if (isDowntrend && !zoneResult.inSupplyZone) {
+      signal.debugAll({ short_rejected: 'not_in_supply_zone' });
+    } else if (isDowntrend && zoneResult.inSupplyZone && !divergence.hasBearish) {
+      signal.debugAll({ short_rejected: 'no_bearish_divergence' });
+    } else if (isDowntrend && zoneResult.inSupplyZone && divergence.hasBearish && !engulfing.isBearishEngulfing) {
+      signal.debugAll({ short_rejected: 'no_bearish_engulfing' });
+    } else if (isDowntrend && zoneResult.inSupplyZone && divergence.hasBearish && engulfing.isBearishEngulfing && !rsiBelowMa) {
+      signal.debugAll({ short_rejected: 'rsi_above_ma' });
     }
   }
 
@@ -357,8 +291,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
 
   /**
    * Detect Supply and Demand zones using pivot points.
-   * Demand zone: area around recent Swing Low
-   * Supply zone: area around recent Swing High
+   * Demand zone: area around recent Swing Low (price must be within ATR * multiplier)
+   * Supply zone: area around recent Swing High (price must be within ATR * multiplier)
    */
   private detectZones(price: number, atr: number, pivotArr: (PivotPointResult | null)[]): ZoneResult {
     const threshold = atr * this.options.zone_atr_multiplier!;
@@ -368,8 +302,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     let minDemandDist = Infinity;
     let minSupplyDist = Infinity;
 
-    // Scan recent pivots (last 50 candles worth of pivots)
-    const recentPivots = pivotArr.slice(-50);
+    // Scan recent pivots (last 30 candles worth of pivots)
+    const recentPivots = pivotArr.slice(-30);
 
     for (const pivot of recentPivots) {
       if (!pivot) continue;
@@ -395,18 +329,18 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       }
     }
 
-    // Price is "in zone" if within threshold distance
-    // Demand zone: price is near or slightly above the swing low
+    // Price is "in zone" if within threshold distance AND price is approaching from the right direction
+    // Demand zone: price is near or slightly above the swing low (price >= swingLow - threshold)
     const inDemandZone =
       nearestDemandLevel !== null &&
       price >= nearestDemandLevel - threshold &&
-      price <= nearestDemandLevel + threshold * 4;
+      price <= nearestDemandLevel + threshold * 3; // Allow some room above the zone
 
-    // Supply zone: price is near or slightly below the swing high
+    // Supply zone: price is near or slightly below the swing high (price <= swingHigh + threshold)
     const inSupplyZone =
       nearestSupplyLevel !== null &&
       price <= nearestSupplyLevel + threshold &&
-      price >= nearestSupplyLevel - threshold * 4;
+      price >= nearestSupplyLevel - threshold * 3; // Allow some room below the zone
 
     return {
       inDemandZone,
@@ -417,27 +351,20 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
   }
 
   /**
-   * Detect RSI Divergence.
+   * Detect RSI Divergence by comparing price swings vs RSI swings.
    *
-   * Compares current candle against each previous candle in the lookback window.
-   * Finds the most significant divergence.
-   *
-   * Bullish Divergence: Current price LOWER than a previous price (Lower Low),
-   *                     but current RSI HIGHER than RSI at that previous point (Higher Low)
-   *
-   * Bearish Divergence: Current price HIGHER than a previous price (Higher High),
-   *                     but current RSI LOWER than RSI at that previous point (Lower High)
+   * Bullish Divergence: Price makes Lower Low but RSI makes Higher Low
+   * Bearish Divergence: Price makes Higher High but RSI makes Lower High
    */
   private detectDivergence(prices: number[], rsiValues: number[], lookback: number): DivergenceResult {
-    if (prices.length < 3 || rsiValues.length < 3) {
+    if (prices.length < 4 || rsiValues.length < 4) {
       return { hasBullish: false, hasBearish: false, bullishStrength: 0, bearishStrength: 0 };
     }
 
-    const n = Math.min(prices.length, rsiValues.length, lookback + 1);
+    const n = Math.min(prices.length, rsiValues.length, lookback + 2);
     const recentPrices = prices.slice(-n);
     const recentRsi = rsiValues.slice(-n);
 
-    // Current candle is the LAST element
     const currentPrice = recentPrices[recentPrices.length - 1];
     const currentRsi = recentRsi[recentRsi.length - 1];
 
@@ -446,18 +373,17 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     let bullishStrength = 0;
     let bearishStrength = 0;
 
-    // Compare current candle against each previous candle in the window
-    // Skip the last element (current candle) and the very first (too old)
-    for (let i = 0; i < recentPrices.length - 1; i++) {
+    // Compare current candle with previous candles to find divergence
+    // We look for the most significant divergence in the lookback window
+    for (let i = 1; i < recentPrices.length - 1; i++) {
       const prevPrice = recentPrices[i];
       const prevRsi = recentRsi[i];
 
-      // Bullish Divergence: current price LOWER than previous (Lower Low)
-      //                     but current RSI HIGHER than previous RSI (Higher Low)
+      // Bullish Divergence: current price lower than previous low, but RSI higher
       if (currentPrice < prevPrice && currentRsi > prevRsi) {
-        const priceDrop = prevPrice > 0 ? (prevPrice - currentPrice) / prevPrice : 0;
-        const rsiRise = (currentRsi - prevRsi) / 100;
-        const strength = priceDrop + rsiRise;
+        const priceDrop = (prevPrice - currentPrice) / prevPrice; // How much price dropped
+        const rsiRise = (currentRsi - prevRsi) / 100; // How much RSI rose (normalized)
+        const strength = (priceDrop + rsiRise) / 2;
 
         if (strength > bullishStrength) {
           bullishStrength = strength;
@@ -465,12 +391,11 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         }
       }
 
-      // Bearish Divergence: current price HIGHER than previous (Higher High)
-      //                     but current RSI LOWER than previous RSI (Lower High)
+      // Bearish Divergence: current price higher than previous high, but RSI lower
       if (currentPrice > prevPrice && currentRsi < prevRsi) {
-        const priceRise = prevPrice > 0 ? (currentPrice - prevPrice) / prevPrice : 0;
-        const rsiDrop = (prevRsi - currentRsi) / 100;
-        const strength = priceRise + rsiDrop;
+        const priceRise = (currentPrice - prevPrice) / prevPrice; // How much price rose
+        const rsiDrop = (prevRsi - currentRsi) / 100; // How much RSI dropped (normalized)
+        const strength = (priceRise + rsiDrop) / 2;
 
         if (strength > bearishStrength) {
           bearishStrength = strength;
@@ -483,19 +408,21 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
   }
 
   /**
-   * Detect candle confirmation patterns.
-   * Returns both simple direction and engulfing pattern.
+   * Detect Engulfing candlestick patterns.
+   *
+   * Bullish Engulfing: Current bullish candle body engulfs previous bearish candle body
+   * Bearish Engulfing: Current bearish candle body engulfs previous bullish candle body
    */
-  private detectCandleConfirmation(candlesArr: any[]): CandleConfirmResult {
+  private detectEngulfing(candlesArr: any[]): EngulfingResult {
     if (candlesArr.length < 2) {
-      return { isBullish: false, isBearish: false, isBullishEngulfing: false, isBearishEngulfing: false };
+      return { isBullishEngulfing: false, isBearishEngulfing: false };
     }
 
     const current = candlesArr[candlesArr.length - 1];
     const previous = candlesArr[candlesArr.length - 2];
 
     if (!current || !previous) {
-      return { isBullish: false, isBearish: false, isBullishEngulfing: false, isBearishEngulfing: false };
+      return { isBullishEngulfing: false, isBearishEngulfing: false };
     }
 
     const currentOpen = current.open;
@@ -503,32 +430,102 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     const prevOpen = previous.open;
     const prevClose = previous.close;
 
-    // Simple direction
-    const isBullish = currentClose > currentOpen;
-    const isBearish = currentClose < currentOpen;
-
-    // Previous candle direction
+    // Current candle is bullish (close > open)
+    const currentBullish = currentClose > currentOpen;
+    // Current candle is bearish (close < open)
+    const currentBearish = currentClose < currentOpen;
+    // Previous candle is bearish (close < open)
     const prevBearish = prevClose < prevOpen;
+    // Previous candle is bullish (close > open)
     const prevBullish = prevClose > prevOpen;
 
-    // Engulfing patterns
+    // Bullish Engulfing: previous bearish, current bullish, current body engulfs previous body
     const isBullishEngulfing =
       prevBearish &&
-      isBullish &&
-      currentOpen <= prevClose &&
-      currentClose >= prevOpen;
+      currentBullish &&
+      currentOpen <= prevClose && // Current open at or below previous close
+      currentClose >= prevOpen; // Current close at or above previous open
 
+    // Bearish Engulfing: previous bullish, current bearish, current body engulfs previous body
     const isBearishEngulfing =
       prevBullish &&
-      isBearish &&
-      currentOpen >= prevClose &&
-      currentClose <= prevOpen;
+      currentBearish &&
+      currentOpen >= prevClose && // Current open at or above previous close
+      currentClose <= prevOpen; // Current close at or below previous open
 
-    return { isBullish, isBearish, isBullishEngulfing, isBearishEngulfing };
+    return { isBullishEngulfing, isBearishEngulfing };
+  }
+
+  /**
+   * Calculate stop loss for long position.
+   * SL = below the demand zone level (swing low) with ATR buffer
+   */
+  private calculateLongStopLoss(price: number, atr: number, demandLevel: number | null): number {
+    if (this.options.stop_loss) {
+      // Use fixed percentage if configured
+      return price * (1 - this.options.stop_loss / 100);
+    }
+
+    if (demandLevel !== null) {
+      // SL below the demand zone with ATR buffer
+      return demandLevel - atr * this.options.atr_sl_multiplier!;
+    }
+
+    // Fallback: ATR-based SL
+    return price - atr * 2;
+  }
+
+  /**
+   * Calculate take profit for long position.
+   * TP = entry + (entry - SL) * RR ratio
+   */
+  private calculateLongTakeProfit(price: number, stopLossPrice: number): number {
+    if (this.options.take_profit) {
+      // Use fixed percentage if configured
+      return price * (1 + this.options.take_profit / 100);
+    }
+
+    const riskAmount = price - stopLossPrice;
+    return price + riskAmount * this.options.rr_ratio!;
+  }
+
+  /**
+   * Calculate stop loss for short position.
+   * SL = above the supply zone level (swing high) with ATR buffer
+   */
+  private calculateShortStopLoss(price: number, atr: number, supplyLevel: number | null): number {
+    if (this.options.stop_loss) {
+      // Use fixed percentage if configured
+      return price * (1 + this.options.stop_loss / 100);
+    }
+
+    if (supplyLevel !== null) {
+      // SL above the supply zone with ATR buffer
+      return supplyLevel + atr * this.options.atr_sl_multiplier!;
+    }
+
+    // Fallback: ATR-based SL
+    return price + atr * 2;
+  }
+
+  /**
+   * Calculate take profit for short position.
+   * TP = entry - (SL - entry) * RR ratio
+   */
+  private calculateShortTakeProfit(price: number, stopLossPrice: number): number {
+    if (this.options.take_profit) {
+      // Use fixed percentage if configured
+      return price * (1 - this.options.take_profit / 100);
+    }
+
+    const riskAmount = stopLossPrice - price;
+    return price - riskAmount * this.options.rr_ratio!;
   }
 
   /**
    * Calculate SMA of RSI values (RSI-Based MA).
+   * This is the "purple line" in the strategy — SMA applied to RSI, not price.
+   * Returns null if not enough RSI data.
    */
   private calculateRsiMa(rsiArr: number[], period: number): number | null {
     if (rsiArr.length < period) {
@@ -540,78 +537,19 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     return sum / period;
   }
 
-  /**
-   * Calculate stop loss for long position.
-   */
-  private calculateLongStopLoss(price: number, atr: number, demandLevel: number | null): number {
-    if (this.options.stop_loss) {
-      return price * (1 - this.options.stop_loss / 100);
-    }
-
-    if (demandLevel !== null) {
-      return demandLevel - atr * this.options.atr_sl_multiplier!;
-    }
-
-    return price - atr * 2;
-  }
-
-  /**
-   * Calculate take profit for long position.
-   */
-  private calculateLongTakeProfit(price: number, stopLossPrice: number): number {
-    if (this.options.take_profit) {
-      return price * (1 + this.options.take_profit / 100);
-    }
-
-    const riskAmount = price - stopLossPrice;
-    return price + riskAmount * this.options.rr_ratio!;
-  }
-
-  /**
-   * Calculate stop loss for short position.
-   */
-  private calculateShortStopLoss(price: number, atr: number, supplyLevel: number | null): number {
-    if (this.options.stop_loss) {
-      return price * (1 + this.options.stop_loss / 100);
-    }
-
-    if (supplyLevel !== null) {
-      return supplyLevel + atr * this.options.atr_sl_multiplier!;
-    }
-
-    return price + atr * 2;
-  }
-
-  /**
-   * Calculate take profit for short position.
-   */
-  private calculateShortTakeProfit(price: number, stopLossPrice: number): number {
-    if (this.options.take_profit) {
-      return price * (1 - this.options.take_profit / 100);
-    }
-
-    const riskAmount = stopLossPrice - price;
-    return price - riskAmount * this.options.rr_ratio!;
-  }
-
   protected getDefaultOptions(): SmcRsiDivergenceOptions {
     return {
-      ema_fast_length: 21,
-      ema_slow_length: 50,
+      ema_fast_length: 50,
+      ema_slow_length: 200,
       rsi_length: 14,
-      rsi_ma_length: 9,
+      rsi_ma_length: 14,
       atr_length: 14,
-      pivot_left: 3,
-      pivot_right: 2,
+      pivot_left: 5,
+      pivot_right: 3,
       divergence_lookback: 8,
-      zone_atr_multiplier: 2.5,
-      atr_sl_multiplier: 0.8,
-      rr_ratio: 2,
-      require_engulfing: false,
-      min_divergence_strength: 0.005,
-      require_rsi_ma: true,
-      rsi_long_max: 50,   // RSI must be <= 50 for LONG (below midpoint)
-      rsi_short_min: 50   // RSI must be >= 50 for SHORT (above midpoint)
+      zone_atr_multiplier: 1.5,
+      atr_sl_multiplier: 0.5,
+      rr_ratio: 3
     };
   }
 }
