@@ -149,33 +149,33 @@
 
                 <div id="bots-list" class="overflow-x-auto">
                     <% if (profile.bots && profile.bots.length > 0) { %>
-                    <table class="w-full text-sm">
+                    <table class="w-full text-sm" id="bots-table">
                         <thead>
                             <tr class="bg-gray-50">
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Name</th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Strategy</th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Pair</th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Interval</th>
-                                <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600">Capital</th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Mode</th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Active</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="0">Name <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="1">Strategy <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="2">Pair <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="3">Interval <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="4">Capital <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="5">Mode <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             <% profile.bots.forEach(function(bot) { %>
                             <tr class="hover:bg-gray-50">
-                                <td class="py-3 px-3 md:px-4 font-medium"><%= bot.name %></td>
-                                <td class="py-3 px-3 md:px-4 font-mono text-gray-600 text-xs"><%= bot.strategy %></td>
-                                <td class="py-3 px-3 md:px-4 font-mono text-xs"><%= bot.pair %></td>
-                                <td class="py-3 px-3 md:px-4"><%= bot.interval %></td>
-                                <td class="py-3 px-3 md:px-4 text-right">$<%= bot.capital.toFixed(2) %></td>
-                                <td class="py-3 px-3 md:px-4">
+                                <td class="py-3 px-3 md:px-4 font-medium" data-sort-value="<%= bot.name %>"><%= bot.name %></td>
+                                <td class="py-3 px-3 md:px-4 font-mono text-gray-600 text-xs" data-sort-value="<%= bot.strategy %>"><%= bot.strategy %></td>
+                                <td class="py-3 px-3 md:px-4 font-mono text-xs" data-sort-value="<%= bot.pair %>"><%= bot.pair %></td>
+                                <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.interval %>"><%= bot.interval %></td>
+                                <td class="py-3 px-3 md:px-4 text-right" data-sort-value="<%= bot.capital %>">$<%= bot.capital.toFixed(2) %></td>
+                                <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.mode %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.mode === 'trade' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' %>">
                                         <%= bot.mode === 'trade' ? 'Trade' : 'Watch' %>
                                     </span>
                                 </td>
-                                <td class="py-3 px-3 md:px-4">
+                                <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.status %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.status === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' %>">
                                         <%= bot.status === 'running' ? 'Running' : 'Stopped' %>
                                     </span>
@@ -211,6 +211,89 @@
 document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
     document.getElementById('sidebar').classList.toggle('hidden');
 });
+
+// Bots table sorting
+(function() {
+    var sortState = { col: -1, asc: true };
+
+    function initBotsTableSort() {
+        var table = document.getElementById('bots-table');
+        if (!table) return;
+
+        table.querySelectorAll('.sortable-header').forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col = parseInt(this.dataset.col);
+                if (sortState.col === col) {
+                    sortState.asc = !sortState.asc;
+                } else {
+                    sortState.col = col;
+                    sortState.asc = true;
+                }
+                sortBotsTable(table, col, sortState.asc);
+                updateSortIcons(table, col, sortState.asc);
+            });
+        });
+    }
+
+    function sortBotsTable(table, col, asc) {
+        var tbody = table.querySelector('tbody');
+        var rows = Array.from(tbody.querySelectorAll('tr'));
+
+        rows.sort(function(a, b) {
+            var aCell = a.querySelectorAll('td')[col];
+            var bCell = b.querySelectorAll('td')[col];
+            if (!aCell || !bCell) return 0;
+
+            var aVal = aCell.dataset.sortValue || aCell.textContent.trim();
+            var bVal = bCell.dataset.sortValue || bCell.textContent.trim();
+
+            // Numeric sort for Capital column (col 4)
+            var aNum = parseFloat(aVal);
+            var bNum = parseFloat(bVal);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                return asc ? aNum - bNum : bNum - aNum;
+            }
+
+            // String sort
+            return asc
+                ? aVal.localeCompare(bVal)
+                : bVal.localeCompare(aVal);
+        });
+
+        rows.forEach(function(row) { tbody.appendChild(row); });
+    }
+
+    function updateSortIcons(table, activeCol, asc) {
+        table.querySelectorAll('.sortable-header').forEach(function(th) {
+            var icon = th.querySelector('.sort-icon');
+            if (!icon) return;
+            var col = parseInt(th.dataset.col);
+            if (col === activeCol) {
+                icon.textContent = asc ? '↑' : '↓';
+                th.classList.add('text-blue-600');
+                th.classList.remove('text-gray-600');
+            } else {
+                icon.textContent = '';
+                th.classList.remove('text-blue-600');
+                th.classList.add('text-gray-600');
+            }
+        });
+    }
+
+    // Init on DOMContentLoaded (or immediately if already loaded)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initBotsTableSort);
+    } else {
+        initBotsTableSort();
+    }
+
+    // Also re-init when Bots tab is clicked (table may be in hidden section)
+    document.querySelectorAll('.tab-btn[data-tab="bots"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setTimeout(initBotsTableSort, 50);
+        });
+    });
+})();
 </script>
 
         <!-- Profile Info -->
@@ -344,33 +427,33 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', function() 
 
                 <div id="bots-list">
                     <% if (profile.bots && profile.bots.length > 0) { %>
-                    <table class="w-full text-sm">
+                    <table class="w-full text-sm" id="bots-table">
                         <thead>
                             <tr class="bg-gray-50">
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Name</th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Strategy</th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Pair</th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Interval</th>
-                                <th class="text-right py-3 px-4 font-medium text-gray-600">Capital</th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Mode</th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600">Active</th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="0">Name <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="1">Strategy <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="2">Pair <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="3">Interval <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-right py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="4">Capital <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="5">Mode <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200">
                             <% profile.bots.forEach(function(bot) { %>
                             <tr class="hover:bg-gray-50">
-                                <td class="py-3 px-4 font-medium"><%= bot.name %></td>
-                                <td class="py-3 px-4 font-mono text-gray-600"><%= bot.strategy %></td>
-                                <td class="py-3 px-4 font-mono"><%= bot.pair %></td>
-                                <td class="py-3 px-4"><%= bot.interval %></td>
-                                <td class="py-3 px-4 text-right">$<%= bot.capital.toFixed(2) %></td>
-                                <td class="py-3 px-4">
+                                <td class="py-3 px-4 font-medium" data-sort-value="<%= bot.name %>"><%= bot.name %></td>
+                                <td class="py-3 px-4 font-mono text-gray-600" data-sort-value="<%= bot.strategy %>"><%= bot.strategy %></td>
+                                <td class="py-3 px-4 font-mono" data-sort-value="<%= bot.pair %>"><%= bot.pair %></td>
+                                <td class="py-3 px-4" data-sort-value="<%= bot.interval %>"><%= bot.interval %></td>
+                                <td class="py-3 px-4 text-right" data-sort-value="<%= bot.capital %>">$<%= bot.capital.toFixed(2) %></td>
+                                <td class="py-3 px-4" data-sort-value="<%= bot.mode %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.mode === 'trade' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' %>">
                                         <%= bot.mode === 'trade' ? 'Trade' : 'Watch' %>
                                     </span>
                                 </td>
-                                <td class="py-3 px-4">
+                                <td class="py-3 px-4" data-sort-value="<%= bot.status %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.status === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' %>">
                                         <%= bot.status === 'running' ? 'Running' : 'Stopped' %>
                                     </span>
