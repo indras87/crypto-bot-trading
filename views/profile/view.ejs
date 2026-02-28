@@ -212,26 +212,32 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', function() 
     document.getElementById('sidebar').classList.toggle('hidden');
 });
 
-// Bots table sorting
+// Bots table sorting — use event delegation on thead to avoid duplicate listeners
 (function() {
     var sortState = { col: -1, asc: true };
+    var initialized = false;
 
     function initBotsTableSort() {
+        if (initialized) return;
         var table = document.getElementById('bots-table');
         if (!table) return;
 
-        table.querySelectorAll('.sortable-header').forEach(function(th) {
-            th.addEventListener('click', function() {
-                var col = parseInt(this.dataset.col);
-                if (sortState.col === col) {
-                    sortState.asc = !sortState.asc;
-                } else {
-                    sortState.col = col;
-                    sortState.asc = true;
-                }
-                sortBotsTable(table, col, sortState.asc);
-                updateSortIcons(table, col, sortState.asc);
-            });
+        initialized = true;
+
+        // Single delegated listener on the thead
+        table.querySelector('thead').addEventListener('click', function(e) {
+            var th = e.target.closest('.sortable-header');
+            if (!th) return;
+
+            var col = parseInt(th.dataset.col);
+            if (sortState.col === col) {
+                sortState.asc = !sortState.asc;
+            } else {
+                sortState.col = col;
+                sortState.asc = true;
+            }
+            sortBotsTable(table, col, sortState.asc);
+            updateSortIcons(table, col, sortState.asc);
         });
     }
 
@@ -287,7 +293,7 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', function() 
         initBotsTableSort();
     }
 
-    // Also re-init when Bots tab is clicked (table may be in hidden section)
+    // Also try to init when Bots tab is clicked (table may not exist yet if hidden)
     document.querySelectorAll('.tab-btn[data-tab="bots"]').forEach(function(btn) {
         btn.addEventListener('click', function() {
             setTimeout(initBotsTableSort, 50);
