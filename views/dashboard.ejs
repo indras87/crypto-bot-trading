@@ -12,7 +12,7 @@
             <table class="w-full border-collapse text-[13px]">
                 <thead>
                 <tr>
-                    <th class="border-0" colspan="3"></th>
+                    <th class="border-0" colspan="5"></th>
 
                     <% periods.forEach(function(period) { %>
                         <th class="text-center border-x border-gray-200 border-b-2 border-gray-300 px-2 py-1" colspan="10"><%= period %></th>
@@ -23,6 +23,8 @@
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1">Symbol</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1">Price</th>
                     <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1">24h</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1" title="TA Score (0-10)">Score</th>
+                    <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1" title="7-Tier Signal">Signal</th>
 
                     <% periods.forEach(function(period) { %>
                         <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1 uppercase" title="Trend Direction (ema 55 / ema 200)">T</th>
@@ -55,6 +57,27 @@
                         <td class="border border-gray-200 px-2 py-1 whitespace-nowrap">
                             <% if (row.percentage_change) { %>
                                 <span class="<%= row.percentage_change > 0 ? 'text-green-600' : 'text-red-600' %>"><%= Math.round(row.percentage_change * 10) / 10 %> %</span>
+                            <% } %>
+                        </td>
+                        <td class="border border-gray-200 px-2 py-1 font-semibold <%= (row.advanced_ta && row.advanced_ta.score) ? (row.advanced_ta.score.scoreTotal >= 7 ? 'text-green-600' : row.advanced_ta.score.scoreTotal >= 3.5 ? 'text-green-500' : row.advanced_ta.score.scoreTotal <= -7 ? 'text-red-600' : row.advanced_ta.score.scoreTotal <= -3.5 ? 'text-red-500' : 'text-gray-600') : 'text-gray-400' %>">
+                            <%= (row.advanced_ta && row.advanced_ta.score) ? row.advanced_ta.score.scoreTotal.toFixed(1) : '-' %>
+                        </td>
+                        <td class="border border-gray-200 px-1 py-1 text-[10px] leading-tight">
+                            <% if (row.advanced_ta && row.advanced_ta.signal) { %>
+                                <% const signalColors = {
+                                    'STRONG_BUY': 'bg-green-600 text-white',
+                                    'BUY': 'bg-green-500 text-white',
+                                    'WEAK_BUY': 'bg-green-300 text-black',
+                                    'NEUTRAL': 'bg-gray-300 text-black',
+                                    'WEAK_SELL': 'bg-red-300 text-black',
+                                    'SELL': 'bg-red-500 text-white',
+                                    'STRONG_SELL': 'bg-red-600 text-white'
+                                }; %>
+                                <span class="<%= signalColors[row.advanced_ta.signal.signal7Tier] || 'bg-gray-200' %> px-1 rounded">
+                                    <%= row.advanced_ta.signal.signal7Tier.replace('STRONG_', 'S_').replace('_', ' ') %>
+                                </span>
+                            <% } else { %>
+                                <span class="text-gray-400">-</span>
                             <% } %>
                         </td>
 

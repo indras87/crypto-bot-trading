@@ -106,4 +106,37 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS created_at_idx ON logs (created_at);
 CREATE INDEX IF NOT EXISTS level_created_at_idx ON logs (level, created_at);
 CREATE INDEX IF NOT EXISTS level_idx ON logs (level);
+
+CREATE TABLE IF NOT EXISTS backtest_runs (
+  id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_group_id           VARCHAR(64)  NOT NULL,
+  run_type               VARCHAR(20)  NOT NULL,
+  exchange               VARCHAR(255) NOT NULL,
+  symbol                 VARCHAR(255) NOT NULL,
+  period                 VARCHAR(20)  NOT NULL,
+  hours                  INTEGER      NOT NULL,
+  strategy               VARCHAR(120) NOT NULL,
+  strategy_options_json  TEXT         NULL,
+  initial_capital        REAL         NOT NULL,
+  use_ai                 INTEGER      NOT NULL,
+  start_time             BIGINT       NOT NULL,
+  end_time               BIGINT       NOT NULL,
+  total_trades           INTEGER      NOT NULL,
+  profitable_trades      INTEGER      NOT NULL,
+  losing_trades          INTEGER      NOT NULL,
+  win_rate               REAL         NOT NULL,
+  total_profit_percent   REAL         NOT NULL,
+  average_profit_percent REAL         NOT NULL,
+  max_drawdown           REAL         NOT NULL,
+  sharpe_ratio           REAL         NOT NULL,
+  created_at             BIGINT       NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS backtest_runs_created_at_idx ON backtest_runs (created_at);
+CREATE INDEX IF NOT EXISTS backtest_runs_strategy_created_idx ON backtest_runs (strategy, created_at);
+CREATE INDEX IF NOT EXISTS backtest_runs_symbol_idx ON backtest_runs (exchange, symbol, period);
+CREATE INDEX IF NOT EXISTS backtest_runs_roi_idx ON backtest_runs (total_profit_percent);
+CREATE INDEX IF NOT EXISTS backtest_runs_sharpe_idx ON backtest_runs (sharpe_ratio);
+CREATE INDEX IF NOT EXISTS backtest_runs_drawdown_idx ON backtest_runs (max_drawdown);
+CREATE INDEX IF NOT EXISTS backtest_runs_group_idx ON backtest_runs (run_group_id);
 `;

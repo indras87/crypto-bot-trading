@@ -1,14 +1,12 @@
 import moment from 'moment';
+import { AdvancedTA, type AdvancedTAResult } from './advanced_ta';
 function getBollingerBandPercent(currentPrice: number, upper: number, lower: number): number {
   return (currentPrice - lower) / (upper - lower);
 }
 
 function getTrendingDirection(lookbacks: number[]): string {
   const currentValue = lookbacks.slice(-1)[0];
-  return (lookbacks[lookbacks.length - 2] + lookbacks[lookbacks.length - 3] + lookbacks[lookbacks.length - 4]) / 3 >
-    currentValue
-    ? 'down'
-    : 'up';
+  return (lookbacks[lookbacks.length - 2] + lookbacks[lookbacks.length - 3] + lookbacks[lookbacks.length - 4]) / 3 > currentValue ? 'down' : 'up';
 }
 
 function getTrendingDirectionLastItem(lookbacks: number[]): string {
@@ -19,7 +17,7 @@ function getCrossedSince(lookbacks: number[]): number | undefined {
   const values = lookbacks.slice().reverse();
   const currentValue = values[0];
   for (let i = 1; i < values.length - 1; i++) {
-    if (currentValue < 0 && values[i] > 0 || currentValue >= 0 && values[i] < 0) {
+    if ((currentValue < 0 && values[i] > 0) || (currentValue >= 0 && values[i] < 0)) {
       return i;
     }
   }
@@ -63,7 +61,11 @@ export interface TaSymbol {
 }
 
 export class Ta {
-  constructor(private candlestickRepository: CandlestickRepository) {}
+  private advancedTa: AdvancedTA;
+
+  constructor(private candlestickRepository: CandlestickRepository) {
+    this.advancedTa = new AdvancedTA();
+  }
 
   async getTaForPeriods(periods: string[], symbols: TaSymbol[]): Promise<any> {
     const promises: Promise<any>[] = [];
@@ -78,25 +80,14 @@ export class Ta {
       periods.forEach((period: string) => {
         promises.push(
           (async () => {
-            const candles = await this.candlestickRepository.getLookbacksForPair(
-              symbol.exchange,
-              symbol.symbol,
-              period,
-              200
-            );
+            const candles = await this.candlestickRepository.getLookbacksForPair(symbol.exchange, symbol.symbol, period, 200);
 
             if (candles.length === 0) {
               return undefined;
             }
 
-            const rangeMin = moment()
-              .subtract(24, 'hours')
-              .subtract(35, 'minutes')
-              .unix();
-            const rangeMax = moment()
-              .subtract(24, 'hours')
-              .add(35, 'minutes')
-              .unix();
+            const rangeMin = moment().subtract(24, 'hours').subtract(35, 'minutes').unix();
+            const rangeMax = moment().subtract(24, 'hours').add(35, 'minutes').unix();
 
             const dayCandle = candles.find((candle: Candlestick) => candle.time > rangeMin && candle.time < rangeMax);
 
@@ -107,13 +98,23 @@ export class Ta {
 
             // candles from repo are newest-first; reverse to oldest-first for indicators
             const result = await calculateDashboardIndicators(candles.slice().reverse());
+
+            // Calculate Advanced TA
+            let advancedTa: AdvancedTAResult | null = null;
+            try {
+              advancedTa = await this.advancedTa.analyze(candles.slice().reverse());
+            } catch (e) {
+              // Advanced TA failed, continue without it
+            }
+
             return {
               symbol: symbol.symbol,
               exchange: symbol.exchange,
               period: period,
               ta: result,
               price: candles[0].close,
-              percentage_change: change
+              percentage_change: change,
+              advanced_ta: advancedTa
             };
           })()
         );
@@ -201,30 +202,24 @@ export class Ta {
         } else if (key == 'bollinger_bands') {
           values[key].percent =
             values[key].value && values[key].value.upper && values[key].value.lower
-              ? getBollingerBandPercent(
-                  v.price,
-                  values[key].value.upper,
-                  values[key].value.lower
-                ) * 100
+              ? getBollingerBandPercent(v.price, values[key].value.upper, values[key].value.lower) * 100
               : null;
-        } else if (
-          key == 'ema_200' ||
-          key == 'ema_55' ||
-          key == 'cci' ||
-          key == 'rsi' ||
-          key == 'ao' ||
-          key == 'mfi'
-        ) {
-          values[key].trend = getTrendingDirection(
-            taResult
-              .slice()
-              .reverse()
-              .slice(-5)
-          );
+        } else if (key == 'ema_200' || key == 'ema_55' || key == 'cci' || key == 'rsi' || key == 'ao' || key == 'mfi') {
+          values[key].trend = getTrendingDirection(taResult.slice().reverse().slice(-5));
         }
       }
 
       x[v.symbol].ta[v.period] = values;
+
+      // Add advanced TA data
+      if (v.advanced_ta) {
+        x[v.symbol].advanced_ta = {
+          score: v.advanced_ta.score,
+          signal: v.advanced_ta.signal,
+          divergences: v.advanced_ta.divergences,
+          squeeze: v.advanced_ta.squeeze
+        };
+      }
     });
 
     return {

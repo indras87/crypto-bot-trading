@@ -1,0 +1,173 @@
+<div class="p-4">
+    <div class="max-w-[1800px] mx-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h1 class="text-2xl font-semibold">Backtest History</h1>
+            <nav class="text-sm text-gray-500">
+                <a href="/" class="text-blue-600 hover:underline">Dashboard</a> /
+                <a href="/backtest" class="text-blue-600 hover:underline">Backtesting</a> /
+                History
+            </nav>
+        </div>
+
+        <%
+            const currentFilters = filters || {};
+            const buildQuery = function (overrides) {
+                const merged = Object.assign({}, currentFilters, overrides || {});
+                const params = new URLSearchParams();
+                Object.keys(merged).forEach(function (k) {
+                    const v = merged[k];
+                    if (v !== undefined && v !== null && String(v) !== '') {
+                        params.set(k, String(v));
+                    }
+                });
+                return params.toString();
+            };
+            const sortLink = function (sortByKey) {
+                const nextDir = currentFilters.sortBy === sortByKey && currentFilters.sortDir === 'desc' ? 'asc' : 'desc';
+                return '/backtest/history?' + buildQuery({ sortBy: sortByKey, sortDir: nextDir, page: 1 });
+            };
+        %>
+
+        <div class="bg-white border border-gray-200 rounded mb-4">
+            <div class="px-4 py-3 border-b border-gray-200 font-medium">Filters</div>
+            <div class="p-4">
+                <form method="get" action="/backtest/history" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <select name="strategy" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="">All Strategies</option>
+                        <% strategies.forEach(function (s) { %>
+                            <option value="<%= s.name %>" <%= currentFilters.strategy === s.name ? 'selected' : '' %>><%= s.name %></option>
+                        <% }); %>
+                    </select>
+
+                    <select name="exchange" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="">All Exchanges</option>
+                        <% exchanges.forEach(function (exchange) { %>
+                            <option value="<%= exchange %>" <%= currentFilters.exchange === exchange ? 'selected' : '' %>><%= exchange %></option>
+                        <% }); %>
+                    </select>
+
+                    <input type="text" name="symbol" class="w-full border border-gray-300 rounded px-3 py-2" placeholder="Symbol contains..." value="<%= currentFilters.symbol %>">
+
+                    <select name="period" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="">All Periods</option>
+                        <% periods.forEach(function (period) { %>
+                            <option value="<%= period %>" <%= currentFilters.period === period ? 'selected' : '' %>><%= period %></option>
+                        <% }); %>
+                    </select>
+
+                    <select name="runType" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="">All Types</option>
+                        <option value="single" <%= currentFilters.runType === 'single' ? 'selected' : '' %>>Single</option>
+                        <option value="multi" <%= currentFilters.runType === 'multi' ? 'selected' : '' %>>Multi</option>
+                    </select>
+
+                    <select name="useAi" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="">AI Any</option>
+                        <option value="1" <%= currentFilters.useAi === '1' ? 'selected' : '' %>>AI On</option>
+                        <option value="0" <%= currentFilters.useAi === '0' ? 'selected' : '' %>>AI Off</option>
+                    </select>
+
+                    <select name="sortBy" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="roi" <%= currentFilters.sortBy === 'roi' ? 'selected' : '' %>>Sort: ROI</option>
+                        <option value="win_rate" <%= currentFilters.sortBy === 'win_rate' ? 'selected' : '' %>>Sort: Win Rate</option>
+                        <option value="sharpe" <%= currentFilters.sortBy === 'sharpe' ? 'selected' : '' %>>Sort: Sharpe</option>
+                        <option value="max_drawdown" <%= currentFilters.sortBy === 'max_drawdown' ? 'selected' : '' %>>Sort: Max Drawdown</option>
+                        <option value="trades" <%= currentFilters.sortBy === 'trades' ? 'selected' : '' %>>Sort: Total Trades</option>
+                        <option value="created_at" <%= currentFilters.sortBy === 'created_at' ? 'selected' : '' %>>Sort: Created At</option>
+                    </select>
+
+                    <select name="sortDir" class="w-full border border-gray-300 rounded px-3 py-2">
+                        <option value="desc" <%= currentFilters.sortDir === 'desc' ? 'selected' : '' %>>Direction: Desc</option>
+                        <option value="asc" <%= currentFilters.sortDir === 'asc' ? 'selected' : '' %>>Direction: Asc</option>
+                    </select>
+
+                    <input type="hidden" name="page" value="1">
+                    <input type="hidden" name="limit" value="<%= limit %>">
+
+                    <div class="md:col-span-2 lg:col-span-4 flex gap-2">
+                        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 cursor-pointer">Apply</button>
+                        <a href="/backtest/history" class="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300">Reset</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded">
+            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <span class="font-medium">Results</span>
+                <span class="text-xs text-gray-500">Total: <%= total %> runs</span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="backtest-table w-full border-collapse text-[13px]">
+                    <thead>
+                        <tr>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('created_at') %>" class="text-blue-600 hover:underline">Created</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Strategy</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Pair</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Period</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Type</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">AI</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('trades') %>" class="text-blue-600 hover:underline">Trades</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('win_rate') %>" class="text-blue-600 hover:underline">Win Rate</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('roi') %>" class="text-blue-600 hover:underline">ROI</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('sharpe') %>" class="text-blue-600 hover:underline">Sharpe</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('max_drawdown') %>" class="text-blue-600 hover:underline">Max DD</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Hours</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Group</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (historyRows.length === 0) { %>
+                            <tr>
+                                <td colspan="13" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
+                            </tr>
+                        <% } %>
+
+                        <% historyRows.forEach(function (row) { %>
+                            <tr class="hover:bg-gray-100">
+                                <td class="border border-gray-200 px-2 py-1.5 whitespace-nowrap"><%= formatDate(row.created_at, 'yy-m-d H:i:s') %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.strategy %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.exchange %>: <%= row.displaySymbol %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.period %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.run_type %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.use_ai ? 'On' : 'Off' %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-center"><%= row.total_trades %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.win_rate.toFixed(2) %> %</td>
+                                <td class="border border-gray-200 px-2 py-1.5 <%= row.total_profit_percent >= 0 ? 'text-green-600' : 'text-red-600' %>"><%= row.total_profit_percent.toFixed(2) %> %</td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.sharpe_ratio.toFixed(3) %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-red-600"><%= row.max_drawdown.toFixed(2) %> %</td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-center"><%= row.hours %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-xs text-gray-500" title="<%= row.run_group_id %>"><%= row.run_group_id.substring(0, 8) %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                <div class="text-xs text-gray-500">Page <%= page %> of <%= pages %></div>
+                <div class="flex gap-2">
+                    <% if (page > 1) { %>
+                        <a href="/backtest/history?<%= buildQuery({ page: page - 1, limit: limit }) %>" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100">Previous</a>
+                    <% } %>
+                    <% if (page < pages) { %>
+                        <a href="/backtest/history?<%= buildQuery({ page: page + 1, limit: limit }) %>" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100">Next</a>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

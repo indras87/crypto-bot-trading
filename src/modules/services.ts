@@ -12,7 +12,7 @@ import { Telegram } from '../notify/telegram';
 
 import { Ta } from './ta';
 
-import { SignalRepository, CandlestickRepository, PositionHistoryRepository } from '../repository';
+import { SignalRepository, CandlestickRepository, PositionHistoryRepository, BacktestRunRepository } from '../repository';
 import { StrategyExecutor } from './strategy/v2/typed_backtest';
 
 import { Trade } from './trade';
@@ -76,6 +76,7 @@ import { AiPowerSar } from '../strategy/strategies/ai_power_sar';
 import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
 import { SmcRsiDivergence } from '../strategy/strategies/smc_rsi_divergence/smc_rsi_divergence';
 import { SmcSRZones } from '../strategy/strategies/smc_sr_zones';
+import { TaSniper } from '../strategy/strategies/ta_sniper';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -135,6 +136,7 @@ let candleStickImporter: CandleImporter;
 let signalRepository: SignalRepository;
 let candlestickRepository: CandlestickRepository;
 let positionHistoryRepository: PositionHistoryRepository;
+let backtestRunRepository: BacktestRunRepository;
 
 let strategyExecutor: StrategyExecutor;
 
@@ -172,6 +174,7 @@ export interface Services {
   getCandleImporter(): CandleImporter;
   getSignalRepository(): SignalRepository;
   getPositionHistoryRepository(): PositionHistoryRepository;
+  getBacktestRunRepository(): BacktestRunRepository;
   getCandlestickRepository(): CandlestickRepository;
   getEventEmitter(): events.EventEmitter;
   getLogger(): Logger;
@@ -243,16 +246,13 @@ const services: Services = {
     }
 
     const dbPath = path.join(parameters.projectDir, 'var', 'bot.db');
-    const dbExists = fs.existsSync(dbPath);
-
     const myDb = new Sqlite(dbPath);
     myDb.pragma('journal_mode = WAL');
     myDb.pragma('SYNCHRONOUS = 1;');
     myDb.pragma('LOCKING_MODE = EXCLUSIVE;');
 
-    if (!dbExists) {
-      myDb.exec(DATABASE_SCHEMA);
-    }
+    // Run schema on every startup so new tables/indexes are created for existing DB files too.
+    myDb.exec(DATABASE_SCHEMA);
 
     return (db = myDb);
   },
@@ -287,6 +287,14 @@ const services: Services = {
     }
 
     return (positionHistoryRepository = new PositionHistoryRepository(this.getDatabase()));
+  },
+
+  getBacktestRunRepository: function (): BacktestRunRepository {
+    if (backtestRunRepository) {
+      return backtestRunRepository;
+    }
+
+    return (backtestRunRepository = new BacktestRunRepository(this.getDatabase()));
   },
 
   getCandlestickRepository: function (): CandlestickRepository {
@@ -551,6 +559,7 @@ const services: Services = {
       this.getStrategyExecutor(),
       this.getCcxtCandleWatchService(),
       this.getAiService(),
+      this.getBacktestRunRepository(),
       this.getCcxtCandlePrefillService()
     );
   },
@@ -649,7 +658,8 @@ const services: Services = {
       AiPowerSar,
       ParabolicSarAi,
       SmcRsiDivergence,
-      SmcSRZones
+      SmcSRZones,
+      TaSniper
     ]));
   },
 
