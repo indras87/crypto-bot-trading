@@ -16,13 +16,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  const chart = document.querySelector('.chart');
+  // Initialize all chart elements (supports single and multi-timeframe pages)
+  document.querySelectorAll('.chart').forEach(function (chart, chartIndex) {
+    initChart(chart, chartIndex);
+  });
 
-  if (chart) {
+  function initChart(chart, chartIndex) {
     const candles = JSON.parse(chart.dataset.candles || '[]');
 
+    if (candles.length === 0) return;
+
     const dim = {
-      width: chart.clientWidth,
+      width: chart.clientWidth || 800,
       height: 500,
       margin: { top: 20, right: 60, bottom: 30, left: 60 },
       ohlc: { height: 450 },
@@ -54,6 +59,12 @@ document.addEventListener('DOMContentLoaded', function () {
     const yVolume = d3.scaleLinear().range([y(0), y(0.4)]);
 
     const candlestick = techan.plot.candlestick().xScale(x).yScale(y);
+
+    // Use unique clip path IDs per chart to avoid conflicts in multi-chart pages
+    const clipIdOhlc = 'ohlcClip-' + chartIndex;
+    const clipIdIndicatorPrefix = 'indicatorClip-' + chartIndex + '-';
+
+    let valueText;
 
     const tradearrow = techan.plot
       .tradearrow()
@@ -124,9 +135,9 @@ document.addEventListener('DOMContentLoaded', function () {
       .yAnnotation([ohlcAnnotation, percentAnnotation, volumeAnnotation])
       .verticalWireRange([0, dim.plot.height]);
 
-    let svg = d3.select('.chart').append('svg').attr('width', dim.width).attr('height', dim.height);
+    let svg = d3.select(chart).append('svg').attr('width', dim.width).attr('height', dim.height);
 
-    var valueText = svg
+    valueText = svg
       .append('text')
       .style('text-anchor', 'end')
       .attr('class', 'coords')
@@ -135,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const defs = svg.append('defs');
 
-    defs.append('clipPath').attr('id', 'ohlcClip').append('rect').attr('x', 0).attr('y', 0).attr('width', dim.plot.width).attr('height', dim.ohlc.height);
+    defs.append('clipPath').attr('id', clipIdOhlc).append('rect').attr('x', 0).attr('y', 0).attr('width', dim.plot.width).attr('height', dim.ohlc.height);
 
     defs
       .selectAll('indicatorClip')
@@ -143,7 +154,7 @@ document.addEventListener('DOMContentLoaded', function () {
       .enter()
       .append('clipPath')
       .attr('id', function (d, i) {
-        return `indicatorClip-${i}`;
+        return clipIdIndicatorPrefix + i;
       })
       .append('rect')
       .attr('x', 0)
@@ -177,9 +188,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     ohlcSelection.append('g').attr('class', 'close annotation up');
 
-    ohlcSelection.append('g').attr('class', 'volume').attr('clip-path', 'url(#ohlcClip)');
+    ohlcSelection.append('g').attr('class', 'volume').attr('clip-path', 'url(#' + clipIdOhlc + ')');
 
-    ohlcSelection.append('g').attr('class', 'candlestick').attr('clip-path', 'url(#ohlcClip)');
+    ohlcSelection.append('g').attr('class', 'candlestick').attr('clip-path', 'url(#' + clipIdOhlc + ')');
 
     ohlcSelection.append('g').attr('class', 'percent axis');
 
@@ -187,7 +198,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     svg.append('g').attr('class', 'crosshair ohlc');
 
-    svg.append('g').attr('class', 'tradearrow').attr('clip-path', 'url(#ohlcClip)');
+    svg.append('g').attr('class', 'tradearrow').attr('clip-path', 'url(#' + clipIdOhlc + ')');
 
     const accessor = candlestick.accessor();
 
@@ -239,12 +250,6 @@ document.addEventListener('DOMContentLoaded', function () {
     yPercentInit = yPercent.copy();
 
     draw();
-
-    function reset() {
-      zoom.scale(1);
-      zoom.translate([0, 0]);
-      draw();
-    }
 
     function zoomed() {
       x.zoomable().domain(d3.event.transform.rescaleX(zoomableInit).domain());
