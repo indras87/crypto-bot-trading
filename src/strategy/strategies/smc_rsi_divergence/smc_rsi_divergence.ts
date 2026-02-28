@@ -64,7 +64,7 @@ export interface SmcRsiDivergenceOptions {
   /**
    * Minimum divergence strength (0-1) to trigger entry.
    * Lower = more signals, higher = more selective.
-   * Default: 0.001 (very permissive)
+   * Default: 0.005
    */
   min_divergence_strength?: number;
   /**
@@ -73,6 +73,18 @@ export interface SmcRsiDivergenceOptions {
    * false: skip RSI-MA filter for more signals
    */
   require_rsi_ma?: boolean;
+  /**
+   * RSI level threshold for LONG entry.
+   * RSI must be BELOW this level to enter long (oversold area).
+   * Default: 50 (no restriction). Set to 45 or 40 for stricter filter.
+   */
+  rsi_long_max?: number;
+  /**
+   * RSI level threshold for SHORT entry.
+   * RSI must be ABOVE this level to enter short (overbought area).
+   * Default: 50 (no restriction). Set to 55 or 60 for stricter filter.
+   */
+  rsi_short_min?: number;
 }
 
 // ============== Indicator Definition ==============
@@ -215,12 +227,20 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
     // ── Determine confirmation based on options ───────────────────────────────
     const requireEngulfing = this.options.require_engulfing ?? false;
     const requireRsiMa = this.options.require_rsi_ma ?? true;
-    const minDivStrength = this.options.min_divergence_strength ?? 0.001;
+    const minDivStrength = this.options.min_divergence_strength ?? 0.005;
 
     const longCandleOk = requireEngulfing ? candleConfirm.isBullishEngulfing : candleConfirm.isBullish;
     const shortCandleOk = requireEngulfing ? candleConfirm.isBearishEngulfing : candleConfirm.isBearish;
     const longRsiMaOk = requireRsiMa ? rsiAboveMa : true;
     const shortRsiMaOk = requireRsiMa ? rsiBelowMa : true;
+
+    // ── RSI Level Filter (oversold/overbought zone) ───────────────────────────
+    // For LONG: RSI should be in oversold area (below rsi_long_max)
+    // For SHORT: RSI should be in overbought area (above rsi_short_min)
+    const rsiLongMax = this.options.rsi_long_max ?? 50;
+    const rsiShortMin = this.options.rsi_short_min ?? 50;
+    const rsiLongLevelOk = rsi <= rsiLongMax;
+    const rsiShortLevelOk = rsi >= rsiShortMin;
 
     // ── Debug Output ──────────────────────────────────────────────────────────
     signal.debugAll({
@@ -242,7 +262,9 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       bullish_candle: candleConfirm.isBullish,
       bearish_candle: candleConfirm.isBearish,
       bullish_engulfing: candleConfirm.isBullishEngulfing,
-      bearish_engulfing: candleConfirm.isBearishEngulfing
+      bearish_engulfing: candleConfirm.isBearishEngulfing,
+      rsi_long_level_ok: rsiLongLevelOk,
+      rsi_short_level_ok: rsiShortLevelOk
     });
 
     // ── LONG Entry ────────────────────────────────────────────────────────────
@@ -252,7 +274,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       divergence.hasBullish &&
       divergence.bullishStrength >= minDivStrength &&
       longCandleOk &&
-      longRsiMaOk
+      longRsiMaOk &&
+      rsiLongLevelOk
     ) {
       const stopLossPrice = this.calculateLongStopLoss(price, atr, zoneResult.nearestDemandLevel);
       const takeProfitPrice = this.calculateLongTakeProfit(price, stopLossPrice);
@@ -265,7 +288,7 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         sl_distance_pct: (((price - stopLossPrice) / price) * 100).toFixed(2),
         tp_distance_pct: (((takeProfitPrice - price) / price) * 100).toFixed(2),
         divergence_strength: divergence.bullishStrength.toFixed(4),
-        confluences: `uptrend+demand_zone+bullish_divergence+${requireEngulfing ? 'engulfing' : 'bullish_candle'}${requireRsiMa ? '+rsi_above_ma' : ''}`
+        confluences: `uptrend+demand_zone+bullish_divergence+${requireEngulfing ? 'engulfing' : 'bullish_candle'}${requireRsiMa ? '+rsi_above_ma' : ''}+rsi_level`
       });
 
       signal.goLong();
@@ -279,7 +302,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       divergence.hasBearish &&
       divergence.bearishStrength >= minDivStrength &&
       shortCandleOk &&
-      shortRsiMaOk
+      shortRsiMaOk &&
+      rsiShortLevelOk
     ) {
       const stopLossPrice = this.calculateShortStopLoss(price, atr, zoneResult.nearestSupplyLevel);
       const takeProfitPrice = this.calculateShortTakeProfit(price, stopLossPrice);
@@ -292,7 +316,7 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         sl_distance_pct: (((stopLossPrice - price) / price) * 100).toFixed(2),
         tp_distance_pct: (((price - takeProfitPrice) / price) * 100).toFixed(2),
         divergence_strength: divergence.bearishStrength.toFixed(4),
-        confluences: `downtrend+supply_zone+bearish_divergence+${requireEngulfing ? 'engulfing' : 'bearish_candle'}${requireRsiMa ? '+rsi_below_ma' : ''}`
+        confluences: `downtrend+supply_zone+bearish_divergence+${requireEngulfing ? 'engulfing' : 'bearish_candle'}${requireRsiMa ? '+rsi_below_ma' : ''}+rsi_level`
       });
 
       signal.goShort();
@@ -309,6 +333,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         signal.debugAll({ long_rejected: requireEngulfing ? 'no_bullish_engulfing' : 'no_bullish_candle' });
       } else if (!longRsiMaOk) {
         signal.debugAll({ long_rejected: 'rsi_below_ma' });
+      } else if (!rsiLongLevelOk) {
+        signal.debugAll({ long_rejected: `rsi_too_high (${rsi.toFixed(1)} > ${rsiLongMax})` });
       }
     }
 
@@ -321,6 +347,8 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
         signal.debugAll({ short_rejected: requireEngulfing ? 'no_bearish_engulfing' : 'no_bearish_candle' });
       } else if (!shortRsiMaOk) {
         signal.debugAll({ short_rejected: 'rsi_above_ma' });
+      } else if (!rsiShortLevelOk) {
+        signal.debugAll({ short_rejected: `rsi_too_low (${rsi.toFixed(1)} < ${rsiShortMin})` });
       }
     }
   }
@@ -580,8 +608,10 @@ export class SmcRsiDivergence extends StrategyBase<SmcRsiDivergenceIndicators, S
       atr_sl_multiplier: 0.8,
       rr_ratio: 2,
       require_engulfing: false,
-      min_divergence_strength: 0.001,
-      require_rsi_ma: true
+      min_divergence_strength: 0.005,
+      require_rsi_ma: true,
+      rsi_long_max: 50,   // RSI must be <= 50 for LONG (below midpoint)
+      rsi_short_min: 50   // RSI must be >= 50 for SHORT (above midpoint)
     };
   }
 }
