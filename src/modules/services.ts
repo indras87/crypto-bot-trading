@@ -498,7 +498,12 @@ const services: Services = {
     if (ccxtCandlePrefillService) {
       return ccxtCandlePrefillService;
     }
-    return (ccxtCandlePrefillService = new CcxtCandlePrefillService(this.getCandleImporter(), this.getLogger(), this.getExchangeInstanceService()));
+    return (ccxtCandlePrefillService = new CcxtCandlePrefillService(
+      this.getCandleImporter(),
+      this.getLogger(),
+      this.getExchangeInstanceService(),
+      this.getCandlestickRepository()
+    ));
   },
 
   getCcxtCandleWatchService: function (): CcxtCandleWatchService {
@@ -536,7 +541,8 @@ const services: Services = {
       this.getV2StrategyRegistry(),
       this.getStrategyExecutor(),
       this.getCcxtCandleWatchService(),
-      this.getAiService()
+      this.getAiService(),
+      this.getCcxtCandlePrefillService()
     );
   },
 

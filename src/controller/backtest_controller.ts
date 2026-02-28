@@ -16,6 +16,7 @@ import type { Period } from '../strategy/strategy';
 import type express from 'express';
 import type { ExchangeCandleCombine } from '../modules/exchange/exchange_candle_combine';
 import type { CcxtCandleWatchService } from '../modules/system/ccxt_candle_watch_service';
+import type { CcxtCandlePrefillService } from '../modules/system/ccxt_candle_prefill_service';
 
 // Chart data format for the view
 interface CandleChartData {
@@ -90,10 +91,11 @@ export class BacktestController extends BaseController {
     private strategyRegistry: StrategyRegistry,
     strategyExecutor: StrategyExecutor,
     private ccxtCandleWatchService: CcxtCandleWatchService,
-    private aiService: AiService
+    private aiService: AiService,
+    ccxtCandlePrefillService?: CcxtCandlePrefillService
   ) {
     super(templateHelpers);
-    this.engine = new TypedBacktestEngine(exchangeCandleCombine, strategyExecutor);
+    this.engine = new TypedBacktestEngine(exchangeCandleCombine, strategyExecutor, ccxtCandlePrefillService);
   }
 
   registerRoutes(router: express.Router): void {

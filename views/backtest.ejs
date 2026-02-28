@@ -50,9 +50,15 @@
                             </div>
 
                             <div>
-                                <label for="form-hours" class="block font-medium mb-1">Last Hours</label>
+                                <label for="form-hours" class="block font-medium mb-1">Backtest Duration (Hours)</label>
                                 <input class="w-full border border-gray-300 rounded px-3 py-2" id="form-hours" name="hours" value="168" required>
-                                <p class="text-xs text-gray-500 mt-1">Starting window until now (168 = 7 days)</p>
+                                <div class="flex gap-2 mt-2 flex-wrap">
+                                    <button type="button" class="preset-hours-btn text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" data-hours="24">1 Day</button>
+                                    <button type="button" class="preset-hours-btn text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" data-hours="168">7 Days</button>
+                                    <button type="button" class="preset-hours-btn text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" data-hours="720">30 Days</button>
+                                    <button type="button" class="preset-hours-btn text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer" data-hours="2160">90 Days</button>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">Hours from now (168 = 7 days, 720 = 30 days). Historical data will be fetched automatically if not in DB.</p>
                             </div>
                         </div>
 
@@ -147,4 +153,11 @@ function syncOptions() {
 
 document.getElementById('form-stop-loss').addEventListener('input', syncOptions);
 document.getElementById('form-take-profit').addEventListener('input', syncOptions);
+
+// Preset duration buttons
+document.querySelectorAll('.preset-hours-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+        document.getElementById('form-hours').value = this.dataset.hours;
+    });
+});
 </script>

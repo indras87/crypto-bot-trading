@@ -328,7 +328,8 @@ export class StrategyExecutor {
 export class TypedBacktestEngine {
   constructor(
     private exchangeCandleCombine: ExchangeCandleCombine,
-    private executor: StrategyExecutor
+    private executor: StrategyExecutor,
+    private ccxtCandlePrefillService?: CcxtCandlePrefillService
   ) { }
 
   /**
@@ -398,6 +399,11 @@ export class TypedBacktestEngine {
     const endTime = Math.floor(Date.now() / 1000);
     const startTime = endTime - hours * 3600;
     const prefillTime = startTime - 200 * convertPeriodToMinute(period) * 60;
+
+    // Ensure historical candles are available in DB — fetch from exchange if needed
+    if (this.ccxtCandlePrefillService) {
+      await this.ccxtCandlePrefillService.ensureCandlesForBacktest(exchange, symbol, period, prefillTime, endTime);
+    }
 
     // Fetch candles
     const candleData = await this.exchangeCandleCombine.fetchCombinedCandlesSince(exchange, symbol, period, [], prefillTime);
