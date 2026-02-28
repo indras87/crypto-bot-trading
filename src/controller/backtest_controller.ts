@@ -4,17 +4,14 @@
 
 import { BaseController, TemplateHelpers } from './base_controller';
 import crypto from 'crypto';
-import {
-  TypedBacktestEngine,
-  StrategyExecutor,
-  type BacktestResult
-} from '../modules/strategy/v2/typed_backtest';
+import { TypedBacktestEngine, StrategyExecutor, type BacktestResult } from '../modules/strategy/v2/typed_backtest';
 import { StrategyRegistry, type StrategyName } from '../modules/strategy/v2/strategy_registry';
 import type { Period } from '../strategy/strategy';
 import type express from 'express';
 import type { ExchangeCandleCombine } from '../modules/exchange/exchange_candle_combine';
 import type { CcxtCandleWatchService } from '../modules/system/ccxt_candle_watch_service';
 import type { CcxtCandlePrefillService } from '../modules/system/ccxt_candle_prefill_service';
+import type { BacktestJobService } from '../modules/backtest_job_service';
 import { BacktestRunRepository, type BacktestRunRecord, type BacktestRunQueryParams } from '../repository/backtest_run_repository';
 
 // Chart data format for the view
@@ -73,6 +70,8 @@ interface BacktestHistoryRow {
   created_at: number;
 }
 
+class BadRequestError extends Error {}
+
 /**
  * Build candle chart data from backtest result (presentation logic)
  */
@@ -102,6 +101,7 @@ import { AiService } from '../ai/ai_service';
 
 export class BacktestController extends BaseController {
   private engine: TypedBacktestEngine;
+  private static readonly MIN_WIN_RATE = 60;
 
   constructor(
     templateHelpers: TemplateHelpers,
@@ -110,6 +110,7 @@ export class BacktestController extends BaseController {
     strategyExecutor: StrategyExecutor,
     private ccxtCandleWatchService: CcxtCandleWatchService,
     private aiService: AiService,
+    private backtestJobService: BacktestJobService,
     private backtestRunRepository: BacktestRunRepository,
     ccxtCandlePrefillService?: CcxtCandlePrefillService
   ) {
@@ -124,7 +125,7 @@ export class BacktestController extends BaseController {
       res.render('backtest', {
         activePage: 'backtest',
         title: 'Backtesting | Crypto Bot',
-        stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
+        stylesheet: this.getStylesheetTag(),
         strategies: this.getStrategies(),
         pairs: await this.getBacktestPairs(),
         periods: ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d']
@@ -174,7 +175,7 @@ export class BacktestController extends BaseController {
         res.render('backtest_history', {
           activePage: 'backtest',
           title: 'Backtest History | Crypto Bot',
-          stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
+          stylesheet: this.getStylesheetTag(),
           historyRows,
           total,
           page,
@@ -204,52 +205,11 @@ export class BacktestController extends BaseController {
     // Backtest submit
     router.post('/backtest/submit', async (req: express.Request, res: express.Response) => {
       try {
-        const { pair, candle_period, hours, strategy, initial_capital, options, use_ai } = req.body;
-        const parsedHours = parseInt(hours, 10);
-        const parsedInitialCapital = parseFloat(initial_capital) || 1000;
-        const parsedUseAi = use_ai === 'on' || use_ai === 'true';
-        const parsedOptions = options ? JSON.parse(options) : undefined;
-
-        // Parse pair (format: "exchange.symbol")
-        const [exchange, symbol] = pair.split('.');
-
-        // Validate strategy
-        if (!this.strategyRegistry.isValidStrategy(strategy)) {
-          res.status(400).json({ error: `Invalid strategy: ${strategy}` });
-          return;
-        }
-
-        // Run backtest
-        const result = await this.runBacktest({
-          exchange,
-          symbol,
-          period: candle_period as Period,
-          hours: parsedHours,
-          strategy: strategy as StrategyName,
-          initialCapital: parsedInitialCapital,
-          options: parsedOptions,
-          useAi: parsedUseAi
-        });
-
-        this.backtestRunRepository.create(this.buildBacktestRunRecord(result, {
-          runGroupId: crypto.randomUUID(),
-          runType: 'single',
-          strategyName: strategy,
-          hours: parsedHours,
-          initialCapital: parsedInitialCapital,
-          useAi: parsedUseAi
-        }));
-
-        // Render result
-        res.render('backtest_result', {
-          activePage: 'backtest',
-          title: 'Backtest Results | Crypto Bot',
-          stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
-          ...this.formatResultForView(result, parsedInitialCapital)
-        });
+        const job = await this.createSingleBacktestJob(req.body);
+        res.redirect(`/backtest/result/${job.id}`);
       } catch (error) {
-        console.error('Backtest error:', error);
-        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+        console.error('Backtest submit error:', error);
+        res.status(error instanceof BadRequestError ? 400 : 500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
       }
     });
 
@@ -303,7 +263,7 @@ export class BacktestController extends BaseController {
       res.render('backtest_multi', {
         activePage: 'backtest',
         title: 'Multi Timeframe Backtesting | Crypto Bot',
-        stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
+        stylesheet: this.getStylesheetTag(),
         strategies: this.getStrategies(),
         pairs: await this.getBacktestPairs(),
         periods: ['1m', '3m', '5m', '15m', '30m', '1h', '4h', '1d']
@@ -313,95 +273,53 @@ export class BacktestController extends BaseController {
     // Multi-timeframe backtest submit
     router.post('/backtest/multi/submit', async (req: express.Request, res: express.Response) => {
       try {
-        const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai, multi_backtest_concurrency } = req.body;
-        const parsedHours = parseInt(hours, 10);
-        const parsedInitialCapital = parseFloat(initial_capital) || 1000;
-        const parsedUseAi = use_ai === 'on' || use_ai === 'true';
-        const parsedConcurrency = Math.max(1, Math.min(parseInt(multi_backtest_concurrency, 10) || 2, 5));
-        const parsedOptions = options ? JSON.parse(options) : undefined;
-        const runGroupId = crypto.randomUUID();
-        const multiStartedAt = Date.now();
-
-        // Parse periods (can be array or single value)
-        const periods = Array.isArray(candle_periods) ? candle_periods : [candle_periods];
-
-        // Validate max 5 periods
-        if (periods.length > 5) {
-          res.status(400).json({ error: 'Maximum 5 periods allowed' });
-          return;
-        }
-
-        if (periods.length === 0) {
-          res.status(400).json({ error: 'At least one period must be selected' });
-          return;
-        }
-
-        // Parse pair (format: "exchange.symbol")
-        const [exchange, symbol] = pair.split('.');
-
-        // Validate strategy
-        if (!this.strategyRegistry.isValidStrategy(strategy)) {
-          res.status(400).json({ error: `Invalid strategy: ${strategy}` });
-          return;
-        }
-
-        // Run backtests for each period
-        const results = await this.runWithConcurrency(
-          periods,
-          parsedConcurrency,
-          async (period: string) => {
-            const backtestStartedAt = Date.now();
-            const result = await this.runBacktest({
-              exchange,
-              symbol,
-              period: period as Period,
-              hours: parsedHours,
-              strategy: strategy as StrategyName,
-              initialCapital: parsedInitialCapital,
-              options: parsedOptions,
-              useAi: parsedUseAi
-            });
-
-            return {
-              rawResult: result,
-              period,
-              durationMs: Date.now() - backtestStartedAt,
-              ...this.formatResultForView(result, parsedInitialCapital)
-            };
-          }
-        );
-
-        this.backtestRunRepository.createMany(
-          results.map(item =>
-            this.buildBacktestRunRecord(item.rawResult, {
-              runGroupId,
-              runType: 'multi',
-              strategyName: strategy,
-              hours: parsedHours,
-              initialCapital: parsedInitialCapital,
-              useAi: parsedUseAi
-            })
-          )
-        );
-
-        // Render results
-        res.render('backtest_multi_result', {
-          activePage: 'backtest',
-          title: 'Multi Timeframe Backtest Results | Crypto Bot',
-          stylesheet: '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">',
-          strategyName: strategy,
-          exchange,
-          symbol,
-          displaySymbol: buildTradingViewSymbol(exchange, symbol),
-          results: results.map(({ rawResult: _rawResult, ...viewResult }) => viewResult)
-        });
-        console.log(
-          `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${periods.join(',')} concurrency=${parsedConcurrency} total_ms=${Date.now() - multiStartedAt}`
-        );
+        const job = await this.createMultiBacktestJob(req.body);
+        res.redirect(`/backtest/multi/result/${job.id}`);
       } catch (error) {
         console.error('Multi-timeframe backtest error:', error);
-        res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+        res.status(error instanceof BadRequestError ? 400 : 500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
       }
+    });
+
+    router.post('/api/backtest/jobs', async (req: express.Request, res: express.Response) => {
+      try {
+        const job = await this.createSingleBacktestJob(req.body);
+        res.status(202).json(this.toJobCreatedResponse(job.id, 'single'));
+      } catch (error) {
+        console.error('Create single backtest job error:', error);
+        res.status(error instanceof BadRequestError ? 400 : 500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    });
+
+    router.post('/api/backtest/multi/jobs', async (req: express.Request, res: express.Response) => {
+      try {
+        const job = await this.createMultiBacktestJob(req.body);
+        res.status(202).json(this.toJobCreatedResponse(job.id, 'multi'));
+      } catch (error) {
+        console.error('Create multi backtest job error:', error);
+        res.status(error instanceof BadRequestError ? 400 : 500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
+      }
+    });
+
+    router.get('/api/backtest/jobs/:jobId', (req: express.Request, res: express.Response) => {
+      const { jobId } = req.params;
+      const job = this.backtestJobService.getJob(jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json({
+        ...job,
+        resultUrl: job.type === 'single' ? `/backtest/result/${job.id}` : `/backtest/multi/result/${job.id}`
+      });
+    });
+
+    router.get('/backtest/result/:jobId', (req: express.Request, res: express.Response) => {
+      this.renderBacktestJobResult(req, res, 'single');
+    });
+
+    router.get('/backtest/multi/result/:jobId', (req: express.Request, res: express.Response) => {
+      this.renderBacktestJobResult(req, res, 'multi');
     });
   }
 
@@ -460,7 +378,9 @@ export class BacktestController extends BaseController {
       initialCapital,
       useAi
     });
-    console.log(`[Backtest] strategy=${strategy} pair=${exchange}:${symbol} period=${period} hours=${hours} useAi=${useAi ? '1' : '0'} total_ms=${Date.now() - startedAt}`);
+    console.log(
+      `[Backtest] strategy=${strategy} pair=${exchange}:${symbol} period=${period} hours=${hours} useAi=${useAi ? '1' : '0'} total_ms=${Date.now() - startedAt}`
+    );
     return result;
   }
 
@@ -558,21 +478,273 @@ export class BacktestController extends BaseController {
   private async runWithConcurrency<TInput, TResult>(
     items: TInput[],
     concurrency: number,
-    worker: (item: TInput, index: number) => Promise<TResult>
+    worker: (item: TInput, index: number) => Promise<TResult>,
+    onItemDone?: (completedCount: number) => void
   ): Promise<TResult[]> {
     const results: TResult[] = new Array(items.length);
     let nextIndex = 0;
+    let completed = 0;
 
     const runWorker = async () => {
       while (nextIndex < items.length) {
         const currentIndex = nextIndex;
         nextIndex++;
         results[currentIndex] = await worker(items[currentIndex], currentIndex);
+        completed++;
+        onItemDone?.(completed);
       }
     };
 
     const workerCount = Math.max(1, Math.min(concurrency, items.length));
     await Promise.all(new Array(workerCount).fill(0).map(() => runWorker()));
     return results;
+  }
+
+  private getStylesheetTag(): string {
+    return '<link rel="stylesheet" href="/css/backtest.css?v=' + this.templateHelpers.assetVersion() + '">';
+  }
+
+  private toJobCreatedResponse(jobId: string, type: 'single' | 'multi') {
+    return {
+      jobId,
+      statusUrl: `/api/backtest/jobs/${jobId}`,
+      resultUrl: type === 'single' ? `/backtest/result/${jobId}` : `/backtest/multi/result/${jobId}`
+    };
+  }
+
+  private renderBacktestJobResult(req: express.Request, res: express.Response, type: 'single' | 'multi'): void {
+    const { jobId } = req.params;
+    const job = this.backtestJobService.getJobForRender(jobId);
+
+    if (!job || job.type !== type) {
+      res.status(404).render('error', { message: 'Backtest job not found' });
+      return;
+    }
+
+    if (job.status === 'failed') {
+      res.status(500).render('error', { message: job.error || 'Backtest failed' });
+      return;
+    }
+
+    if (job.status !== 'done' || !job.result) {
+      res.render('backtest_job_progress', {
+        activePage: 'backtest',
+        title: 'Backtest Running | Crypto Bot',
+        stylesheet: this.getStylesheetTag(),
+        jobId: job.id,
+        statusUrl: `/api/backtest/jobs/${job.id}`,
+        resultUrl: type === 'single' ? `/backtest/result/${job.id}` : `/backtest/multi/result/${job.id}`
+      });
+      return;
+    }
+
+    if (type === 'single') {
+      res.render('backtest_result', {
+        activePage: 'backtest',
+        title: 'Backtest Results | Crypto Bot',
+        stylesheet: this.getStylesheetTag(),
+        ...job.result.viewData
+      });
+      return;
+    }
+
+    res.render('backtest_multi_result', {
+      activePage: 'backtest',
+      title: 'Multi Timeframe Backtest Results | Crypto Bot',
+      stylesheet: this.getStylesheetTag(),
+      ...job.result.viewData
+    });
+  }
+
+  private async createSingleBacktestJob(body: any) {
+    const { pair, candle_period, hours, strategy, initial_capital, options, use_ai } = body;
+    const parsedHours = parseInt(hours, 10);
+    const parsedInitialCapital = parseFloat(initial_capital) || 1000;
+    const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
+    let parsedOptions: Record<string, unknown> | undefined;
+    try {
+      parsedOptions = options ? JSON.parse(options) : undefined;
+    } catch (_error) {
+      throw new BadRequestError('Invalid strategy options JSON');
+    }
+    const [exchange, symbol] = String(pair || '').split('.');
+
+    if (!exchange || !symbol) {
+      throw new BadRequestError('Invalid pair');
+    }
+    if (!this.strategyRegistry.isValidStrategy(strategy)) {
+      throw new BadRequestError(`Invalid strategy: ${strategy}`);
+    }
+    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+      throw new BadRequestError('Invalid hours');
+    }
+
+    return this.backtestJobService.createJob('single', async ({ setProgress }) => {
+      setProgress('running', 5, 'Preparing strategy');
+      const result = await this.runBacktest({
+        exchange,
+        symbol,
+        period: candle_period as Period,
+        hours: parsedHours,
+        strategy: strategy as StrategyName,
+        initialCapital: parsedInitialCapital,
+        options: parsedOptions,
+        useAi: parsedUseAi
+      });
+
+      setProgress('saving', 90, 'Saving result');
+      await this.saveSingleBacktestIfQualified(result, strategy, parsedHours, parsedInitialCapital, parsedUseAi);
+
+      return {
+        resultType: 'single',
+        viewData: this.formatResultForView(result, parsedInitialCapital)
+      };
+    });
+  }
+
+  private async createMultiBacktestJob(body: any) {
+    const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai, multi_backtest_concurrency } = body;
+    const parsedHours = parseInt(hours, 10);
+    const parsedInitialCapital = parseFloat(initial_capital) || 1000;
+    const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
+    const parsedConcurrency = Math.max(1, Math.min(parseInt(multi_backtest_concurrency, 10) || 2, 5));
+    let parsedOptions: Record<string, unknown> | undefined;
+    try {
+      parsedOptions = options ? JSON.parse(options) : undefined;
+    } catch (_error) {
+      throw new BadRequestError('Invalid strategy options JSON');
+    }
+    const [exchange, symbol] = String(pair || '').split('.');
+    const periods = (Array.isArray(candle_periods) ? candle_periods : [candle_periods]).filter(Boolean);
+
+    if (!exchange || !symbol) {
+      throw new BadRequestError('Invalid pair');
+    }
+    if (!this.strategyRegistry.isValidStrategy(strategy)) {
+      throw new BadRequestError(`Invalid strategy: ${strategy}`);
+    }
+    if (!Number.isFinite(parsedHours) || parsedHours <= 0) {
+      throw new BadRequestError('Invalid hours');
+    }
+    if (periods.length === 0) {
+      throw new BadRequestError('At least one period must be selected');
+    }
+    if (periods.length > 5) {
+      throw new BadRequestError('Maximum 5 periods allowed');
+    }
+
+    return this.backtestJobService.createJob('multi', async ({ setProgress }) => {
+      const runGroupId = crypto.randomUUID();
+      const multiStartedAt = Date.now();
+      setProgress('running', 3, `Starting ${periods.length} timeframe(s)`);
+
+      const results = await this.runWithConcurrency(
+        periods,
+        parsedConcurrency,
+        async (period: string) => {
+          const result = await this.runBacktest({
+            exchange,
+            symbol,
+            period: period as Period,
+            hours: parsedHours,
+            strategy: strategy as StrategyName,
+            initialCapital: parsedInitialCapital,
+            options: parsedOptions,
+            useAi: parsedUseAi
+          });
+          return {
+            rawResult: result,
+            period,
+            ...this.formatResultForView(result, parsedInitialCapital)
+          };
+        },
+        completedCount => {
+          const progress = 5 + Math.floor((completedCount / periods.length) * 85);
+          setProgress('running', progress, `Processed ${completedCount}/${periods.length} timeframe(s)`);
+        }
+      );
+
+      setProgress('saving', 92, 'Saving qualified results');
+      await this.saveMultiBacktestIfQualified(results, {
+        runGroupId,
+        strategyName: strategy,
+        hours: parsedHours,
+        initialCapital: parsedInitialCapital,
+        useAi: parsedUseAi
+      });
+
+      console.log(
+        `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${periods.join(',')} concurrency=${parsedConcurrency} total_ms=${Date.now() - multiStartedAt}`
+      );
+
+      return {
+        resultType: 'multi',
+        viewData: {
+          strategyName: strategy,
+          exchange,
+          symbol,
+          displaySymbol: buildTradingViewSymbol(exchange, symbol),
+          results: results.map(({ rawResult: _rawResult, ...viewResult }) => viewResult)
+        }
+      };
+    });
+  }
+
+  private async saveSingleBacktestIfQualified(
+    result: BacktestResult,
+    strategy: string,
+    hours: number,
+    initialCapital: number,
+    useAi: boolean
+  ): Promise<void> {
+    if (result.summary.winRate >= BacktestController.MIN_WIN_RATE) {
+      this.backtestRunRepository.create(
+        this.buildBacktestRunRecord(result, {
+          runGroupId: crypto.randomUUID(),
+          runType: 'single',
+          strategyName: strategy,
+          hours,
+          initialCapital,
+          useAi
+        })
+      );
+      return;
+    }
+    console.log(
+      `Backtest not saved: Win rate ${result.summary.winRate.toFixed(2)}% is below ${BacktestController.MIN_WIN_RATE}% threshold`
+    );
+  }
+
+  private async saveMultiBacktestIfQualified(
+    results: Array<{ rawResult: BacktestResult }>,
+    options: {
+      runGroupId: string;
+      strategyName: string;
+      hours: number;
+      initialCapital: number;
+      useAi: boolean;
+    }
+  ): Promise<void> {
+    const filteredResults = results.filter(item => item.rawResult.summary.winRate >= BacktestController.MIN_WIN_RATE);
+    const skippedCount = results.length - filteredResults.length;
+
+    if (filteredResults.length > 0) {
+      this.backtestRunRepository.createMany(
+        filteredResults.map(item =>
+          this.buildBacktestRunRecord(item.rawResult, {
+            runGroupId: options.runGroupId,
+            runType: 'multi',
+            strategyName: options.strategyName,
+            hours: options.hours,
+            initialCapital: options.initialCapital,
+            useAi: options.useAi
+          })
+        )
+      );
+    }
+
+    if (skippedCount > 0) {
+      console.log(`Backtest not saved: ${skippedCount} result(s) with win rate below ${BacktestController.MIN_WIN_RATE}% threshold`);
+    }
   }
 }

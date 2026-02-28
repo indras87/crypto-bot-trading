@@ -35,6 +35,7 @@ import { LogsRepository, TickerLogRepository, TickerRepository } from '../reposi
 import { QueueManager } from '../utils/queue';
 import { FileCache } from '../utils/file_cache';
 import { BinancePriceService } from '../utils/binance_price_service';
+import { BacktestJobService } from './backtest_job_service';
 import nodemailer from 'nodemailer';
 import { Telegraf } from 'telegraf';
 
@@ -137,6 +138,7 @@ let signalRepository: SignalRepository;
 let candlestickRepository: CandlestickRepository;
 let positionHistoryRepository: PositionHistoryRepository;
 let backtestRunRepository: BacktestRunRepository;
+let backtestJobService: BacktestJobService;
 
 let strategyExecutor: StrategyExecutor;
 
@@ -175,6 +177,7 @@ export interface Services {
   getSignalRepository(): SignalRepository;
   getPositionHistoryRepository(): PositionHistoryRepository;
   getBacktestRunRepository(): BacktestRunRepository;
+  getBacktestJobService(): BacktestJobService;
   getCandlestickRepository(): CandlestickRepository;
   getEventEmitter(): events.EventEmitter;
   getLogger(): Logger;
@@ -295,6 +298,14 @@ const services: Services = {
     }
 
     return (backtestRunRepository = new BacktestRunRepository(this.getDatabase()));
+  },
+
+  getBacktestJobService: function (): BacktestJobService {
+    if (backtestJobService) {
+      return backtestJobService;
+    }
+
+    return (backtestJobService = new BacktestJobService(1, 6));
   },
 
   getCandlestickRepository: function (): CandlestickRepository {
@@ -559,6 +570,7 @@ const services: Services = {
       this.getStrategyExecutor(),
       this.getCcxtCandleWatchService(),
       this.getAiService(),
+      this.getBacktestJobService(),
       this.getBacktestRunRepository(),
       this.getCcxtCandlePrefillService()
     );

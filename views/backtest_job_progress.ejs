@@ -1,0 +1,51 @@
+<div class="p-3 md:p-4">
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white border border-gray-200 rounded">
+            <div class="p-4 md:p-6">
+                <h1 class="text-xl font-semibold">Backtest sedang diproses</h1>
+                <p class="text-sm text-gray-600 mt-2">Job ID: <span class="font-mono"><%= jobId %></span></p>
+                <div id="job-progress-message" class="text-sm text-blue-700 mt-4">Menunggu status...</div>
+                <div class="w-full bg-blue-100 rounded h-2 mt-3">
+                    <div id="job-progress-bar" class="bg-blue-600 h-2 rounded transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const statusUrl = '<%= statusUrl %>';
+const resultUrl = '<%= resultUrl %>';
+const progressBar = document.getElementById('job-progress-bar');
+const progressMessage = document.getElementById('job-progress-message');
+
+function setProgress(percent, message) {
+    progressBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    progressMessage.textContent = message || 'Memproses...';
+}
+
+const timer = setInterval(async function() {
+    try {
+        const res = await fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        if (!res.ok) {
+            throw new Error('Gagal mengambil status job');
+        }
+        const data = await res.json();
+        setProgress(data.progressPercent || 0, data.message || 'Memproses...');
+
+        if (data.status === 'done') {
+            clearInterval(timer);
+            window.location.href = resultUrl;
+            return;
+        }
+
+        if (data.status === 'failed') {
+            clearInterval(timer);
+            setProgress(data.progressPercent || 0, data.error || 'Backtest gagal');
+        }
+    } catch (error) {
+        clearInterval(timer);
+        setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan saat polling');
+    }
+}, 1000);
+</script>

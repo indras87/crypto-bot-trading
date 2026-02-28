@@ -21,6 +21,8 @@ export interface TaSniperOptions {
   advanced_ta_refresh_candles: number;
   advanced_ta_warmup_candles: number;
   advanced_ta_cache_enabled: boolean;
+  advanced_ta_refresh_candles_by_timeframe?: Record<string, number>;
+  advanced_ta_warmup_candles_by_timeframe?: Record<string, number>;
 }
 
 type TaSniperThresholdConfig = Pick<
@@ -29,86 +31,36 @@ type TaSniperThresholdConfig = Pick<
 >;
 
 const TA_SNIPER_TIMEFRAME_PROFILES: Record<string, TaSniperThresholdConfig> = {
-  '1m': {
-    min_confidence: 0.55,
-    min_score: 2.0,
-    min_volume_confirm: 0.45,
-    min_adx: 14,
-    rsi_min: 20,
-    rsi_max: 80,
-    require_divergence_check: false,
-    allow_squeeze_entry: true
-  },
-  '3m': {
-    min_confidence: 0.58,
-    min_score: 2.3,
-    min_volume_confirm: 0.5,
-    min_adx: 16,
-    rsi_min: 22,
-    rsi_max: 78,
-    require_divergence_check: false,
-    allow_squeeze_entry: true
-  },
-  '5m': {
-    min_confidence: 0.62,
-    min_score: 2.6,
-    min_volume_confirm: 0.55,
-    min_adx: 18,
-    rsi_min: 25,
-    rsi_max: 75,
-    require_divergence_check: false,
-    allow_squeeze_entry: true
-  },
-  '15m': {
-    min_confidence: 0.65,
-    min_score: 2.9,
-    min_volume_confirm: 0.6,
-    min_adx: 20,
-    rsi_min: 26,
-    rsi_max: 74,
-    require_divergence_check: false,
-    allow_squeeze_entry: false
-  },
-  '30m': {
-    min_confidence: 0.68,
-    min_score: 3.1,
-    min_volume_confirm: 0.62,
-    min_adx: 22,
-    rsi_min: 28,
-    rsi_max: 72,
-    require_divergence_check: true,
-    allow_squeeze_entry: false
-  },
-  '1h': {
-    min_confidence: 0.7,
-    min_score: 3.3,
-    min_volume_confirm: 0.65,
-    min_adx: 24,
-    rsi_min: 30,
-    rsi_max: 70,
-    require_divergence_check: true,
-    allow_squeeze_entry: false
-  },
-  '4h': {
-    min_confidence: 0.72,
-    min_score: 3.5,
-    min_volume_confirm: 0.68,
-    min_adx: 25,
-    rsi_min: 30,
-    rsi_max: 70,
-    require_divergence_check: true,
-    allow_squeeze_entry: false
-  },
-  '1d': {
-    min_confidence: 0.75,
-    min_score: 3.8,
-    min_volume_confirm: 0.7,
-    min_adx: 27,
-    rsi_min: 32,
-    rsi_max: 68,
-    require_divergence_check: true,
-    allow_squeeze_entry: false
-  }
+  '1m': { min_confidence: 0.55, min_score: 2.0, min_volume_confirm: 0.45, min_adx: 14, rsi_min: 20, rsi_max: 80, require_divergence_check: false, allow_squeeze_entry: true },
+  '3m': { min_confidence: 0.58, min_score: 2.3, min_volume_confirm: 0.5, min_adx: 16, rsi_min: 22, rsi_max: 78, require_divergence_check: false, allow_squeeze_entry: true },
+  '5m': { min_confidence: 0.62, min_score: 2.6, min_volume_confirm: 0.55, min_adx: 18, rsi_min: 25, rsi_max: 75, require_divergence_check: false, allow_squeeze_entry: true },
+  '15m': { min_confidence: 0.65, min_score: 2.9, min_volume_confirm: 0.6, min_adx: 20, rsi_min: 26, rsi_max: 74, require_divergence_check: false, allow_squeeze_entry: false },
+  '30m': { min_confidence: 0.68, min_score: 3.1, min_volume_confirm: 0.62, min_adx: 22, rsi_min: 28, rsi_max: 72, require_divergence_check: true, allow_squeeze_entry: false },
+  '1h': { min_confidence: 0.7, min_score: 3.3, min_volume_confirm: 0.65, min_adx: 24, rsi_min: 30, rsi_max: 70, require_divergence_check: true, allow_squeeze_entry: false },
+  '4h': { min_confidence: 0.72, min_score: 3.5, min_volume_confirm: 0.68, min_adx: 25, rsi_min: 30, rsi_max: 70, require_divergence_check: true, allow_squeeze_entry: false },
+  '1d': { min_confidence: 0.75, min_score: 3.8, min_volume_confirm: 0.7, min_adx: 27, rsi_min: 32, rsi_max: 68, require_divergence_check: true, allow_squeeze_entry: false }
+};
+
+const TA_SNIPER_ADVANCED_TA_REFRESH_BY_TIMEFRAME: Record<string, number> = {
+  '1m': 6,
+  '3m': 4,
+  '5m': 3,
+  '15m': 3,
+  '30m': 2,
+  '1h': 2,
+  '4h': 1,
+  '1d': 1
+};
+
+const TA_SNIPER_ADVANCED_TA_WARMUP_BY_TIMEFRAME: Record<string, number> = {
+  '1m': 180,
+  '3m': 140,
+  '5m': 120,
+  '15m': 120,
+  '30m': 110,
+  '1h': 100,
+  '4h': 100,
+  '1d': 100
 };
 
 export type TaSniperIndicators = {
@@ -204,9 +156,24 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
     };
   }
 
-  private async getAdvancedAnalysis(candles: Candlestick[]): Promise<AdvancedTAResult | null> {
-    const refreshEvery = Math.max(this.options.advanced_ta_refresh_candles || 3, 1);
-    const warmupCandles = Math.max(this.options.advanced_ta_warmup_candles || 120, 100);
+  private getAdvancedTaRuntimeSettings(timeframe: string): { refreshEvery: number; warmupCandles: number } {
+    const refreshByTf =
+      this.options.advanced_ta_refresh_candles_by_timeframe?.[timeframe] ??
+      TA_SNIPER_ADVANCED_TA_REFRESH_BY_TIMEFRAME[timeframe] ??
+      this.options.advanced_ta_refresh_candles;
+    const warmupByTf =
+      this.options.advanced_ta_warmup_candles_by_timeframe?.[timeframe] ??
+      TA_SNIPER_ADVANCED_TA_WARMUP_BY_TIMEFRAME[timeframe] ??
+      this.options.advanced_ta_warmup_candles;
+
+    return {
+      refreshEvery: Math.max(refreshByTf || 3, 1),
+      warmupCandles: Math.max(warmupByTf || 120, 100)
+    };
+  }
+
+  private async getAdvancedAnalysis(candles: Candlestick[], timeframe: string): Promise<AdvancedTAResult | null> {
+    const { refreshEvery, warmupCandles } = this.getAdvancedTaRuntimeSettings(timeframe);
     const cacheEnabled = this.options.advanced_ta_cache_enabled !== false;
     const currentIndex = candles.length - 1;
 
@@ -224,10 +191,12 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
       const analysis = await this.advancedTa.analyze(candles);
       this.advancedTaCalls++;
       this.advancedTaTotalMs += Date.now() - startedAt;
+
       if (cacheEnabled) {
         this.cachedAdvancedAnalysis = analysis;
         this.cachedAdvancedAnalysisAt = currentIndex;
       }
+
       return analysis;
     } catch (e) {
       console.log(`TaSniper: Advanced TA analysis failed: ${String(e)}`);
@@ -235,59 +204,57 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
     }
   }
 
+  private getTailValue<T>(arr: T[] | undefined, backFromLast: number = 0): T | undefined {
+    if (!arr || arr.length === 0) return undefined;
+    const idx = arr.length - 1 - backFromLast;
+    if (idx < 0) return undefined;
+    return arr[idx];
+  }
+
   async execute(context: TypedStrategyContext<TaSniperIndicators>, signal: StrategySignal): Promise<void> {
     const prices = context.prices;
     const lastSignal = context.lastSignal;
+    const candles = context.getIndicator('candles') as unknown as Candlestick[];
 
-    const candlesArr = context.getIndicator('candles') as unknown as Candlestick[];
-    if (!candlesArr || candlesArr.length < 100) {
+    if (!candles || candles.length < 100 || prices.length < 2) {
       return;
     }
 
-    const validCandles = candlesArr.filter(c => c && c.close !== null && c.close !== undefined);
-    if (validCandles.length < 100) {
-      return;
-    }
+    const rsiSeries = context.getIndicator('rsi') as unknown as Array<number | null>;
+    const macdSeries = context.getIndicator('macd') as unknown as Array<{ macd: number; signal: number; histogram: number } | null>;
+    const adxSeries = context.getIndicator('adx') as unknown as Array<number | null>;
+    const ema50Series = context.getIndicator('ema50') as unknown as Array<number | null>;
+    const ema200Series = context.getIndicator('ema200') as unknown as Array<number | null>;
+    const sarSeries = context.getIndicator('sar') as unknown as Array<number | null>;
 
-    const rsiRaw = context.getIndicatorSlice('rsi', 3) as number[];
-    const macdRaw = context.getIndicatorSlice('macd', 3) as { macd: number; signal: number; histogram: number }[];
-    const adxRaw = context.getIndicatorSlice('adx', 3) as number[];
-    const ema50Raw = context.getIndicatorSlice('ema50', 3) as number[];
-    const ema200Raw = context.getIndicatorSlice('ema200', 3) as number[];
-    const sarRaw = context.getIndicatorSlice('sar', 3) as number[];
+    const currentRsi = this.getTailValue(rsiSeries, 0);
+    const currentMacd = this.getTailValue(macdSeries, 0);
+    const prevMacd = this.getTailValue(macdSeries, 1);
+    const currentAdx = this.getTailValue(adxSeries, 0);
+    const currentEma50 = this.getTailValue(ema50Series, 0);
+    const currentEma200 = this.getTailValue(ema200Series, 0);
+    const currentSar = this.getTailValue(sarSeries, 0);
+    const prevSar = this.getTailValue(sarSeries, 1);
 
-    const rsiValues = (Array.isArray(rsiRaw) ? rsiRaw.filter(v => v !== null && !isNaN(v)) : []) as number[];
-    const macdValues = (Array.isArray(macdRaw) ? macdRaw.filter(v => v !== null) : []) as { macd: number; signal: number; histogram: number }[];
-    const adxValues = (Array.isArray(adxRaw) ? adxRaw.filter(v => v !== null && !isNaN(v)) : []) as number[];
-    const ema50Values = (Array.isArray(ema50Raw) ? ema50Raw.filter(v => v !== null && !isNaN(v)) : []) as number[];
-    const ema200Values = (Array.isArray(ema200Raw) ? ema200Raw.filter(v => v !== null && !isNaN(v)) : []) as number[];
-    const sarValues = (Array.isArray(sarRaw) ? sarRaw.filter(v => v !== null && !isNaN(v)) : []) as number[];
-
-    if (rsiValues.length < 2 || macdValues.length < 2 || adxValues.length < 2 || prices.length < 2) {
-      return;
-    }
-
-    const currentIdx = rsiValues.length - 1;
-    const prevIdx = rsiValues.length - 2;
-
-    const currentRsi = rsiValues[currentIdx];
-    const currentMacd = macdValues[currentIdx];
-    const prevMacd = macdValues[prevIdx];
-    const currentAdx = adxValues[currentIdx];
-    const currentEma50 = ema50Values[ema50Values.length - 1];
-    const currentEma200 = ema200Values[ema200Values.length - 1];
-    const currentSar = sarValues[sarValues.length - 1];
-    const prevSar = sarValues[sarValues.length - 2];
     const currentPrice = prices[prices.length - 1];
     const prevPrice = prices[prices.length - 2];
 
-    if (currentRsi === undefined || currentMacd === undefined || currentAdx === undefined) {
+    if (
+      typeof currentRsi !== 'number' ||
+      typeof currentAdx !== 'number' ||
+      !currentMacd ||
+      !prevMacd ||
+      typeof currentEma50 !== 'number' ||
+      typeof currentEma200 !== 'number' ||
+      typeof currentSar !== 'number' ||
+      typeof prevSar !== 'number'
+    ) {
       return;
     }
 
     const timeframe = this.options.timeframe || '5m';
     const thresholds = this.getEffectiveThresholds(timeframe);
-    const currentCandle = validCandles[validCandles.length - 1];
+    const currentCandle = candles[candles.length - 1];
 
     const macdCrossUp = currentMacd.histogram > 0 && prevMacd.histogram <= 0;
     const macdCrossDown = currentMacd.histogram < 0 && prevMacd.histogram >= 0;
@@ -295,11 +262,8 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
     const sarFlipDown = currentSar < currentPrice && prevSar >= prevPrice;
 
     const longExit = (lastSignal === 'long' && sarFlipDown) || (lastSignal === 'long' && this.exitByProfit(currentPrice));
-
     const shortExit = (lastSignal === 'short' && sarFlipUp) || (lastSignal === 'short' && this.exitByProfit(currentPrice));
-
     const emergencyExit = lastSignal && (currentRsi > 85 || currentRsi < 15);
-
     const hardStopLoss = lastSignal && this.checkHardStopLoss(currentPrice);
 
     if (longExit || shortExit || emergencyExit || hardStopLoss) {
@@ -332,19 +296,16 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
         return;
       }
 
-      // Fast-path for very weak momentum/trend to avoid expensive AdvancedTA calls.
-      if (Math.abs(currentMacd.histogram) < 0.0001 && currentAdx < thresholds.min_adx * 0.7) {
-        signal.debugAll({
-          gate: 'fast_skip',
-          reason: 'weak_momentum_and_trend',
-          timeframe,
-          adx: Math.round(currentAdx * 100) / 100,
-          macd_histogram: currentMacd.histogram
-        });
+      const weakTrend = currentAdx < thresholds.min_adx * 0.7;
+      const weakMomentum = Math.abs(currentMacd.histogram) < 0.0001;
+      const farOutsideRsi = currentRsi < thresholds.rsi_min - 8 || currentRsi > thresholds.rsi_max + 8;
+
+      // Fast-path for low-probability candles to avoid expensive AdvancedTA calls.
+      if ((weakTrend && weakMomentum) || (farOutsideRsi && weakTrend)) {
         return;
       }
 
-      const advancedAnalysis = await this.getAdvancedAnalysis(validCandles);
+      const advancedAnalysis = await this.getAdvancedAnalysis(candles, timeframe);
       if (!advancedAnalysis) {
         return;
       }
@@ -428,12 +389,14 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
       if (advancedAnalysis.signal.trigger) {
         const blockedBy: string[] = [];
         const triggerSignal = advancedAnalysis.signal.signal;
+
         if ((score?.confidence ?? 0) < thresholds.min_confidence) blockedBy.push('confidence');
         if ((score?.volumeConfirmation ?? 0) < thresholds.min_volume_confirm) blockedBy.push('volume_confirm');
         if (currentAdx < thresholds.min_adx) blockedBy.push('adx');
         if (currentRsi < thresholds.rsi_min || currentRsi > thresholds.rsi_max) blockedBy.push('rsi_range');
         if (triggerSignal === 'long' && !(macdCrossUp || currentMacd.histogram > 0)) blockedBy.push('macd_confirm');
         if (triggerSignal === 'short' && !(macdCrossDown || currentMacd.histogram < 0)) blockedBy.push('macd_confirm');
+
         if (
           thresholds.require_divergence_check &&
           ((triggerSignal === 'long' && (divergences?.rsi === 'BEARISH_DIV' || divergences?.macd === 'BEARISH_DIV')) ||
@@ -441,6 +404,7 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
         ) {
           blockedBy.push('divergence');
         }
+
         if (!thresholds.allow_squeeze_entry && squeeze) blockedBy.push('squeeze');
 
         signal.debugAll({
@@ -518,7 +482,9 @@ export class TaSniper extends StrategyBase<TaSniperIndicators, TaSniperOptions> 
       timeframe_overrides: {},
       advanced_ta_refresh_candles: 3,
       advanced_ta_warmup_candles: 120,
-      advanced_ta_cache_enabled: true
+      advanced_ta_cache_enabled: true,
+      advanced_ta_refresh_candles_by_timeframe: {},
+      advanced_ta_warmup_candles_by_timeframe: {}
     };
   }
 }

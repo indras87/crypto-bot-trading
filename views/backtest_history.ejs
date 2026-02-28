@@ -113,6 +113,8 @@
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
                                 <a href="<%= sortLink('trades') %>" class="text-blue-600 hover:underline">Trades</a>
                             </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Wins</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Losses</th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
                                 <a href="<%= sortLink('win_rate') %>" class="text-blue-600 hover:underline">Win Rate</a>
                             </th>
@@ -132,7 +134,7 @@
                     <tbody>
                         <% if (historyRows.length === 0) { %>
                             <tr>
-                                <td colspan="13" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
+                                <td colspan="15" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
                             </tr>
                         <% } %>
 
@@ -145,6 +147,8 @@
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.run_type %></td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.use_ai ? 'On' : 'Off' %></td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-center"><%= row.total_trades %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-center text-green-600"><%= row.profitable_trades %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-center text-red-600"><%= row.losing_trades %></td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.win_rate.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5 <%= row.total_profit_percent >= 0 ? 'text-green-600' : 'text-red-600' %>"><%= row.total_profit_percent.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.sharpe_ratio.toFixed(3) %></td>

@@ -12,7 +12,7 @@
 
         <div class="bg-white border border-gray-200 rounded">
             <div class="p-4 md:p-6">
-                <form action="/backtest/multi/submit" method="post" class="backtest-v2-form">
+                <form action="/backtest/multi/submit" method="post" class="backtest-v2-form" data-async-endpoint="/api/backtest/multi/jobs">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                         <div class="space-y-4">
                             <div>
@@ -82,10 +82,18 @@
                         </div>
                     </div>
 
-                    <button type="submit" class="mt-6 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">
+                    <button id="run-multi-backtest-btn" type="submit" class="mt-6 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">
                         Run Multi Timeframe Backtest
                     </button>
+                    <p class="text-xs text-gray-500 mt-2">Only results with Win Rate ≥ 60% will be saved to history</p>
                 </form>
+                <div id="job-progress-panel" class="mt-4 hidden border border-blue-200 bg-blue-50 rounded p-3">
+                    <div class="text-sm font-medium text-blue-900">Multi-timeframe backtest sedang berjalan...</div>
+                    <div id="job-progress-message" class="text-xs text-blue-700 mt-1">Mengantri</div>
+                    <div class="w-full bg-blue-100 rounded h-2 mt-3">
+                        <div id="job-progress-bar" class="bg-blue-600 h-2 rounded transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -151,5 +159,81 @@ document.querySelectorAll('.preset-hours-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
         document.getElementById('form-hours').value = this.dataset.hours;
     });
+});
+
+const backtestForm = document.querySelector('.backtest-v2-form');
+const progressPanel = document.getElementById('job-progress-panel');
+const progressBar = document.getElementById('job-progress-bar');
+const progressMessage = document.getElementById('job-progress-message');
+const runButton = document.getElementById('run-multi-backtest-btn');
+
+function setProgress(percent, message) {
+    progressBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
+    progressMessage.textContent = message || 'Memproses...';
+}
+
+async function pollJob(statusUrl, resultUrl) {
+    const timer = setInterval(async function() {
+        try {
+            const res = await fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!res.ok) {
+                throw new Error('Gagal mengambil status job');
+            }
+            const data = await res.json();
+            setProgress(data.progressPercent || 0, data.message || 'Memproses...');
+
+            if (data.status === 'done') {
+                clearInterval(timer);
+                window.location.href = resultUrl || data.resultUrl;
+                return;
+            }
+            if (data.status === 'failed') {
+                clearInterval(timer);
+                runButton.disabled = false;
+                runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+                setProgress(data.progressPercent || 0, data.error || 'Backtest gagal');
+            }
+        } catch (error) {
+            clearInterval(timer);
+            runButton.disabled = false;
+            runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan saat polling status');
+        }
+    }, 1000);
+}
+
+backtestForm.addEventListener('submit', async function(event) {
+    event.preventDefault();
+    runButton.disabled = true;
+    runButton.classList.add('opacity-50', 'cursor-not-allowed');
+    progressPanel.classList.remove('hidden');
+    setProgress(2, 'Mengirim request multi-timeframe backtest...');
+
+    try {
+        const formData = new FormData(backtestForm);
+        const body = new URLSearchParams();
+        formData.forEach(function(value, key) {
+            body.append(key, String(value));
+        });
+
+        const res = await fetch(backtestForm.dataset.asyncEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(function() { return {}; });
+            throw new Error(data.error || 'Gagal membuat job multi-timeframe backtest');
+        }
+        const data = await res.json();
+        setProgress(5, 'Job dibuat, menunggu eksekusi...');
+        pollJob(data.statusUrl, data.resultUrl);
+    } catch (error) {
+        runButton.disabled = false;
+        runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan');
+    }
 });
 </script>
