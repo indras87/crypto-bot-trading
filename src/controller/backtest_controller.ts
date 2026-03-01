@@ -13,6 +13,7 @@ import type { CcxtCandleWatchService } from '../modules/system/ccxt_candle_watch
 import type { CcxtCandlePrefillService } from '../modules/system/ccxt_candle_prefill_service';
 import type { BacktestJobService } from '../modules/backtest_job_service';
 import { BacktestRunRepository, type BacktestRunRecord, type BacktestRunQueryParams } from '../repository/backtest_run_repository';
+import { convertPeriodToMinute } from '../utils/resample';
 
 // Chart data format for the view
 interface CandleChartData {
@@ -310,8 +311,87 @@ export class BacktestController extends BaseController {
       }
       res.json({
         ...job,
+        streamUrl: `/api/backtest/jobs/${job.id}/events`,
+        snapshotUrl: `/api/backtest/jobs/${job.id}/snapshot`,
         resultUrl: job.type === 'single' ? `/backtest/result/${job.id}` : `/backtest/multi/result/${job.id}`
       });
+    });
+
+    router.get('/api/backtest/jobs/:jobId/snapshot', (req: express.Request, res: express.Response) => {
+      const { jobId } = req.params;
+      const job = this.backtestJobService.getJob(jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+      res.json({
+        jobId: job.id,
+        type: job.type,
+        status: job.status,
+        phase: job.phase,
+        progressPercent: job.progressPercent,
+        message: job.message,
+        error: job.error,
+        snapshot: job.snapshot
+      });
+    });
+
+    router.get('/api/backtest/jobs/:jobId/events', (req: express.Request, res: express.Response) => {
+      const { jobId } = req.params;
+      const job = this.backtestJobService.getJob(jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Job not found' });
+        return;
+      }
+
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders();
+
+      const writeEvent = (eventName: string, payload: Record<string, any>) => {
+        res.write(`event: ${eventName}\n`);
+        res.write(`data: ${JSON.stringify(payload)}\n\n`);
+        (res as any).flush?.();
+      };
+
+      writeEvent('snapshot', {
+        jobId: job.id,
+        type: job.type,
+        status: job.status,
+        phase: job.phase,
+        progressPercent: job.progressPercent,
+        message: job.message,
+        error: job.error,
+        snapshot: job.snapshot
+      });
+
+      const unsubscribe = this.backtestJobService.subscribe(jobId, event => {
+        writeEvent(event.type, {
+          jobId,
+          ...event
+        });
+      });
+
+      const keepAlive = setInterval(() => {
+        writeEvent('keepalive', { ts: Date.now() });
+      }, 15000);
+
+      req.on('close', () => {
+        clearInterval(keepAlive);
+        unsubscribe?.();
+      });
+    });
+
+    router.get('/api/backtest/jobs/:jobId/result/:period', (req: express.Request, res: express.Response) => {
+      const { jobId, period } = req.params;
+      const detail = this.backtestJobService.getPeriodDetail(jobId, period);
+      if (!detail) {
+        res.status(404).json({ error: 'Timeframe result not found' });
+        return;
+      }
+      res.json(detail);
     });
 
     router.get('/backtest/result/:jobId', (req: express.Request, res: express.Response) => {
@@ -508,6 +588,8 @@ export class BacktestController extends BaseController {
     return {
       jobId,
       statusUrl: `/api/backtest/jobs/${jobId}`,
+      streamUrl: `/api/backtest/jobs/${jobId}/events`,
+      snapshotUrl: `/api/backtest/jobs/${jobId}/snapshot`,
       resultUrl: type === 'single' ? `/backtest/result/${jobId}` : `/backtest/multi/result/${jobId}`
     };
   }
@@ -557,10 +639,11 @@ export class BacktestController extends BaseController {
   }
 
   private async createSingleBacktestJob(body: any) {
-    const { pair, candle_period, hours, strategy, initial_capital, options, use_ai } = body;
+    const { pair, candle_period, hours, strategy, initial_capital, options, use_ai, save_high_winrate } = body;
     const parsedHours = parseInt(hours, 10);
     const parsedInitialCapital = parseFloat(initial_capital) || 1000;
     const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
+    const parsedSaveHighWinrate = save_high_winrate === 'on' || save_high_winrate === 'true' || save_high_winrate === '1';
     let parsedOptions: Record<string, unknown> | undefined;
     try {
       parsedOptions = options ? JSON.parse(options) : undefined;
@@ -593,7 +676,7 @@ export class BacktestController extends BaseController {
       });
 
       setProgress('saving', 90, 'Saving result');
-      await this.saveSingleBacktestIfQualified(result, strategy, parsedHours, parsedInitialCapital, parsedUseAi);
+      await this.saveSingleBacktestIfQualified(result, strategy, parsedHours, parsedInitialCapital, parsedUseAi, parsedSaveHighWinrate);
 
       return {
         resultType: 'single',
@@ -603,11 +686,13 @@ export class BacktestController extends BaseController {
   }
 
   private async createMultiBacktestJob(body: any) {
-    const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai, multi_backtest_concurrency } = body;
+    const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai, multi_backtest_concurrency, save_high_winrate } = body;
     const parsedHours = parseInt(hours, 10);
     const parsedInitialCapital = parseFloat(initial_capital) || 1000;
     const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
+    const parsedSaveHighWinrate = save_high_winrate === 'on' || save_high_winrate === 'true' || save_high_winrate === '1';
     const parsedConcurrency = Math.max(1, Math.min(parseInt(multi_backtest_concurrency, 10) || 2, 5));
+    const effectiveConcurrency = parsedHours > 168 ? 1 : parsedConcurrency;
     let parsedOptions: Record<string, unknown> | undefined;
     try {
       parsedOptions = options ? JSON.parse(options) : undefined;
@@ -633,48 +718,83 @@ export class BacktestController extends BaseController {
       throw new BadRequestError('Maximum 5 periods allowed');
     }
 
-    return this.backtestJobService.createJob('multi', async ({ setProgress }) => {
+    return this.backtestJobService.createJob('multi', async ({ setProgress, initPeriods, setPeriodState, setPeriodSummary, setPeriodDetail, setPeriodFailure }) => {
       const runGroupId = crypto.randomUUID();
       const multiStartedAt = Date.now();
-      setProgress('running', 3, `Starting ${periods.length} timeframe(s)`);
+      const orderedPeriods = this.orderPeriodsForExecution(periods);
+      const doneResults: Array<{ rawResult: BacktestResult; period: string; viewResult: Record<string, any> }> = [];
 
-      const results = await this.runWithConcurrency(
-        periods,
-        parsedConcurrency,
+      initPeriods(orderedPeriods);
+      setProgress(
+        'running',
+        3,
+        `Starting ${orderedPeriods.length} timeframe(s), concurrency=${effectiveConcurrency}${parsedHours > 168 ? ' (optimized for long range)' : ''}`
+      );
+
+      await this.runWithConcurrency(
+        orderedPeriods,
+        effectiveConcurrency,
         async (period: string) => {
-          const result = await this.runBacktest({
-            exchange,
-            symbol,
-            period: period as Period,
-            hours: parsedHours,
-            strategy: strategy as StrategyName,
-            initialCapital: parsedInitialCapital,
-            options: parsedOptions,
-            useAi: parsedUseAi
-          });
-          return {
-            rawResult: result,
-            period,
-            ...this.formatResultForView(result, parsedInitialCapital)
-          };
+          try {
+            setPeriodState(period, 'running', `Processing ${period}`);
+            const result = await this.runBacktest({
+              exchange,
+              symbol,
+              period: period as Period,
+              hours: parsedHours,
+              strategy: strategy as StrategyName,
+              initialCapital: parsedInitialCapital,
+              options: parsedOptions,
+              useAi: parsedUseAi
+            });
+            const formatted = this.formatResultForView(result, parsedInitialCapital);
+            doneResults.push({
+              rawResult: result,
+              period,
+              viewResult: formatted
+            });
+
+            setPeriodSummary(period, this.buildMultiSummaryForRealtime(period, formatted));
+            setPeriodDetail(period, formatted);
+            setPeriodState(period, 'done', `${period} completed`);
+            await new Promise<void>(resolve => setImmediate(resolve));
+
+            return {
+              status: 'done' as const,
+              rawResult: result,
+              period,
+              ...formatted
+            };
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            setPeriodFailure(period, errorMessage);
+            setPeriodState(period, 'failed', `${period} failed`);
+            await new Promise<void>(resolve => setImmediate(resolve));
+            return {
+              status: 'failed' as const,
+              period,
+              error: errorMessage
+            };
+          }
         },
         completedCount => {
-          const progress = 5 + Math.floor((completedCount / periods.length) * 85);
-          setProgress('running', progress, `Processed ${completedCount}/${periods.length} timeframe(s)`);
+          const progress = 5 + Math.floor((completedCount / orderedPeriods.length) * 85);
+          setProgress('running', progress, `Processed ${completedCount}/${orderedPeriods.length} timeframe(s)`);
         }
       );
 
       setProgress('saving', 92, 'Saving qualified results');
-      await this.saveMultiBacktestIfQualified(results, {
+      await this.saveMultiBacktestIfQualified(doneResults, {
         runGroupId,
         strategyName: strategy,
         hours: parsedHours,
         initialCapital: parsedInitialCapital,
-        useAi: parsedUseAi
+        useAi: parsedUseAi,
+        saveHighWinrate: parsedSaveHighWinrate
       });
 
       console.log(
-        `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${periods.join(',')} concurrency=${parsedConcurrency} total_ms=${Date.now() - multiStartedAt}`
+        `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${orderedPeriods.join(',')} concurrency=${effectiveConcurrency} total_ms=${Date.now() - multiStartedAt}`
       );
 
       return {
@@ -684,10 +804,32 @@ export class BacktestController extends BaseController {
           exchange,
           symbol,
           displaySymbol: buildTradingViewSymbol(exchange, symbol),
-          results: results.map(({ rawResult: _rawResult, ...viewResult }) => viewResult)
+          results: doneResults.map(item => item.viewResult)
         }
       };
     });
+  }
+
+  private buildMultiSummaryForRealtime(period: string, formattedResult: ReturnType<BacktestController['formatResultForView']>) {
+    return {
+      period,
+      exchange: formattedResult.exchange,
+      symbol: formattedResult.symbol,
+      strategyName: formattedResult.strategyName,
+      startTime: formattedResult.startTime,
+      endTime: formattedResult.endTime,
+      summary: formattedResult.summary
+    };
+  }
+
+  private orderPeriodsForExecution(periods: string[]): string[] {
+    return periods
+      .slice()
+      .sort((a, b) => {
+        const aMinutes = convertPeriodToMinute(a as Period);
+        const bMinutes = convertPeriodToMinute(b as Period);
+        return bMinutes - aMinutes;
+      });
   }
 
   private async saveSingleBacktestIfQualified(
@@ -695,9 +837,10 @@ export class BacktestController extends BaseController {
     strategy: string,
     hours: number,
     initialCapital: number,
-    useAi: boolean
+    useAi: boolean,
+    saveHighWinrate: boolean
   ): Promise<void> {
-    if (result.summary.winRate >= BacktestController.MIN_WIN_RATE) {
+    if (!saveHighWinrate || result.summary.winRate >= BacktestController.MIN_WIN_RATE) {
       this.backtestRunRepository.create(
         this.buildBacktestRunRecord(result, {
           runGroupId: crypto.randomUUID(),
@@ -710,9 +853,7 @@ export class BacktestController extends BaseController {
       );
       return;
     }
-    console.log(
-      `Backtest not saved: Win rate ${result.summary.winRate.toFixed(2)}% is below ${BacktestController.MIN_WIN_RATE}% threshold`
-    );
+    console.log(`Backtest not saved: Win rate ${result.summary.winRate.toFixed(2)}% is below ${BacktestController.MIN_WIN_RATE}% threshold`);
   }
 
   private async saveMultiBacktestIfQualified(
@@ -723,9 +864,10 @@ export class BacktestController extends BaseController {
       hours: number;
       initialCapital: number;
       useAi: boolean;
+      saveHighWinrate: boolean;
     }
   ): Promise<void> {
-    const filteredResults = results.filter(item => item.rawResult.summary.winRate >= BacktestController.MIN_WIN_RATE);
+    const filteredResults = options.saveHighWinrate ? results.filter(item => item.rawResult.summary.winRate >= BacktestController.MIN_WIN_RATE) : results;
     const skippedCount = results.length - filteredResults.length;
 
     if (filteredResults.length > 0) {

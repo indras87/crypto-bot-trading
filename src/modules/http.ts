@@ -136,7 +136,16 @@ export class Http {
 
     app.use(express.urlencoded({ limit: '12mb', extended: true, parameterLimit: 50000 }));
     app.use(cookieParser());
-    app.use(compression());
+    app.use(
+      compression({
+        filter: (req: any, res: any) => {
+          if (req.path && String(req.path).endsWith('/events')) {
+            return false;
+          }
+          return compression.filter(req, res);
+        }
+      })
+    );
     app.use(express.static(`${this.projectDir}/web/static`, { maxAge: 3600000 * 24 }));
 
     const username = this.systemUtil.getConfig('webserver.username');

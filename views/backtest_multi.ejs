@@ -85,8 +85,12 @@
                     <button id="run-multi-backtest-btn" type="submit" class="mt-6 bg-blue-600 text-white px-6 py-3 rounded hover:bg-blue-700 cursor-pointer w-full sm:w-auto">
                         Run Multi Timeframe Backtest
                     </button>
-                    <p class="text-xs text-gray-500 mt-2">Only results with Win Rate ≥ 60% will be saved to history</p>
+                    <div class="flex items-center mt-3">
+                        <input type="checkbox" id="form-save-high-winrate" name="save_high_winrate" class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <label for="form-save-high-winrate" class="ml-2 text-sm text-gray-700">Save only if Win Rate ≥ 60%</label>
+                    </div>
                 </form>
+
                 <div id="job-progress-panel" class="mt-4 hidden border border-blue-200 bg-blue-50 rounded p-3">
                     <div class="text-sm font-medium text-blue-900">Multi-timeframe backtest sedang berjalan...</div>
                     <div id="job-progress-message" class="text-xs text-blue-700 mt-1">Mengantri</div>
@@ -94,13 +98,53 @@
                         <div id="job-progress-bar" class="bg-blue-600 h-2 rounded transition-all duration-300" style="width: 0%"></div>
                     </div>
                 </div>
+
+                <div id="job-timeframe-status" class="mt-4 hidden bg-white border border-gray-200 rounded p-3">
+                    <div class="text-sm font-medium mb-2">Status Timeframe</div>
+                    <div id="timeframe-status-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-2"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="realtime-results" class="p-4 hidden">
+    <div class="max-w-[1800px] mx-auto">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-semibold">Multi Timeframe Backtesting Results <span id="realtime-title-meta" class="text-gray-500"></span></h2>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded mb-4">
+            <div class="px-4 py-3 border-b border-gray-200 font-medium">Summary</div>
+            <div class="p-4 overflow-x-auto">
+                <div id="realtime-summary-row" class="flex gap-4"></div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded mb-4">
+            <div class="px-4 py-3 border-b border-gray-200 font-medium">Charts</div>
+            <div class="p-4 overflow-x-auto">
+                <div id="realtime-charts-row" class="flex gap-4"></div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded mb-4">
+            <div class="px-4 py-3 border-b border-gray-200 font-medium">Trades</div>
+            <div class="p-4 overflow-x-auto">
+                <div id="realtime-trades-row" class="flex gap-4"></div>
+            </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded mb-4">
+            <div class="px-4 py-3 border-b border-gray-200 font-medium">Signal History</div>
+            <div class="p-4 overflow-x-auto">
+                <div id="realtime-signal-row" class="flex gap-4"></div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-// Strategy data for dynamic updates
 const strategyData = {
     <% strategies.forEach(function(strategy) { %>
         '<%= strategy.name %>': {
@@ -110,7 +154,6 @@ const strategyData = {
     <% }); %>
 };
 
-// Update strategy description and default options on selection
 document.getElementById('form-strategy').addEventListener('change', function() {
     const data = strategyData[this.value];
     const descEl = document.getElementById('strategy-description');
@@ -125,14 +168,13 @@ document.getElementById('form-strategy').addEventListener('change', function() {
     }
 });
 
-// Period selection counter (max 5)
 const checkboxes = document.querySelectorAll('input[name="candle_periods"]');
 const countEl = document.getElementById('period-count');
 
 function updatePeriodCount() {
     const checked = document.querySelectorAll('input[name="candle_periods"]:checked').length;
     countEl.textContent = checked + '/5 periods selected';
-    
+
     if (checked >= 5) {
         checkboxes.forEach(cb => {
             if (!cb.checked) {
@@ -150,11 +192,8 @@ function updatePeriodCount() {
     }
 }
 
-checkboxes.forEach(cb => {
-    cb.addEventListener('change', updatePeriodCount);
-});
+checkboxes.forEach(cb => cb.addEventListener('change', updatePeriodCount));
 
-// Preset duration buttons
 document.querySelectorAll('.preset-hours-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
         document.getElementById('form-hours').value = this.dataset.hours;
@@ -166,74 +205,402 @@ const progressPanel = document.getElementById('job-progress-panel');
 const progressBar = document.getElementById('job-progress-bar');
 const progressMessage = document.getElementById('job-progress-message');
 const runButton = document.getElementById('run-multi-backtest-btn');
+const timeframeStatusPanel = document.getElementById('job-timeframe-status');
+const timeframeStatusGrid = document.getElementById('timeframe-status-grid');
+const realtimeResults = document.getElementById('realtime-results');
+const realtimeTitleMeta = document.getElementById('realtime-title-meta');
+
+let activeJobId = null;
+let activeSse = null;
+let pollingTimer = null;
+let metaData = null;
+const periodDetails = new Map();
 
 function setProgress(percent, message) {
     progressBar.style.width = Math.max(0, Math.min(100, percent)) + '%';
     progressMessage.textContent = message || 'Memproses...';
 }
 
-async function pollJob(statusUrl, resultUrl) {
-    const timer = setInterval(async function() {
-        try {
-            const res = await fetch(statusUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-            if (!res.ok) {
-                throw new Error('Gagal mengambil status job');
-            }
-            const data = await res.json();
-            setProgress(data.progressPercent || 0, data.message || 'Memproses...');
+function setRunButtonEnabled(isEnabled) {
+    runButton.disabled = !isEnabled;
+    if (isEnabled) runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+    else runButton.classList.add('opacity-50', 'cursor-not-allowed');
+}
 
-            if (data.status === 'done') {
-                clearInterval(timer);
-                window.location.href = resultUrl || data.resultUrl;
-                return;
+function cleanupChannels() {
+    if (activeSse) {
+        activeSse.close();
+        activeSse = null;
+    }
+    if (pollingTimer) {
+        clearInterval(pollingTimer);
+        pollingTimer = null;
+    }
+}
+
+function resetRealtimeState() {
+    cleanupChannels();
+    activeJobId = null;
+    metaData = null;
+    periodDetails.clear();
+    timeframeStatusGrid.innerHTML = '';
+    realtimeResults.classList.add('hidden');
+    document.getElementById('realtime-summary-row').innerHTML = '';
+    document.getElementById('realtime-charts-row').innerHTML = '';
+    document.getElementById('realtime-trades-row').innerHTML = '';
+    document.getElementById('realtime-signal-row').innerHTML = '';
+}
+
+function getStatusStyle(status) {
+    if (status === 'done') return 'border-green-200 bg-green-50 text-green-700';
+    if (status === 'running') return 'border-blue-200 bg-blue-50 text-blue-700';
+    if (status === 'failed') return 'border-red-200 bg-red-50 text-red-700';
+    return 'border-gray-200 bg-gray-50 text-gray-600';
+}
+
+function formatDateTime(tsOrDate) {
+    const d = tsOrDate instanceof Date ? tsOrDate : new Date(tsOrDate);
+    if (Number.isNaN(d.getTime())) return '-';
+    return d.toLocaleString('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).replace(',', '');
+}
+
+function escapeHtml(text) {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function escapeAttr(text) {
+    return escapeHtml(text).replace(/`/g, '&#096;');
+}
+
+function periodToMinutes(period) {
+    const m = String(period).match(/^(\d+)(m|h|d)$/);
+    if (!m) return 0;
+    const value = parseInt(m[1], 10);
+    if (m[2] === 'm') return value;
+    if (m[2] === 'h') return value * 60;
+    return value * 1440;
+}
+
+function renderTimeframeStatus(snapshot) {
+    const states = (snapshot && snapshot.periodStates) || {};
+    const periods = Object.keys(states).sort((a, b) => periodToMinutes(b) - periodToMinutes(a));
+    if (periods.length === 0) return;
+
+    timeframeStatusPanel.classList.remove('hidden');
+    timeframeStatusGrid.innerHTML = periods.map(function(period) {
+        const status = states[period];
+        return '<div class="border rounded px-2 py-1 text-xs ' + getStatusStyle(status) + '">' +
+            '<span class="font-semibold">' + period + '</span>: ' + status +
+        '</div>';
+    }).join('');
+}
+
+async function fetchPeriodDetail(period) {
+    const res = await fetch('/api/backtest/jobs/' + encodeURIComponent(activeJobId) + '/result/' + encodeURIComponent(period), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) throw new Error('Detail period ' + period + ' belum tersedia');
+    return res.json();
+}
+
+function renderRealtimeLayout() {
+    const periods = Array.from(periodDetails.keys()).sort((a, b) => periodToMinutes(b) - periodToMinutes(a));
+    if (periods.length === 0) return;
+
+    realtimeResults.classList.remove('hidden');
+    if (metaData && metaData.strategyName && metaData.displaySymbol) {
+        realtimeTitleMeta.textContent = ' - ' + metaData.strategyName + ' - ' + metaData.displaySymbol;
+    }
+
+    const summaryHtml = [];
+    const chartsHtml = [];
+    const tradesHtml = [];
+    const signalHtml = [];
+
+    periods.forEach(period => {
+        const result = periodDetails.get(period);
+        if (!result) return;
+        const summary = result.summary || {};
+        const trades = summary.trades || { total: 0, profitableCount: 0, lossMakingCount: 0, profitabilityPercent: 0 };
+        const signalRows = (result.rows || []).filter(r => r.signal);
+        const indicatorKeys = result.indicatorKeys || [];
+
+        summaryHtml.push(
+            '<div class="flex-1 min-w-[380px] border border-gray-200 rounded p-3">' +
+                '<div class="font-semibold text-lg mb-2 text-center pb-2 border-b border-gray-200">' + escapeHtml(period) + '</div>' +
+                '<table class="backtest-table w-full border-collapse text-[13px]">' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Initial Capital</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.initialCapital || 0).toFixed(2) + ' $</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Final Capital</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.finalCapital || 0).toFixed(2) + ' $</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Net ROI</td><td class="border border-gray-200 px-2 py-1.5 ' + (Number(summary.netProfit || 0) > 0 ? 'text-green-600' : 'text-red-600') + '">' + Number(summary.netProfit || 0).toFixed(2) + ' %</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Sharpe Ratio</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.sharpeRatio || 0).toFixed(2) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Max Drawdown</td><td class="border border-gray-200 px-2 py-1.5 text-red-600">' + Number(summary.maxDrawdown || 0).toFixed(2) + ' %</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Avg Return/Trade</td><td class="border border-gray-200 px-2 py-1.5 ' + (Number(summary.averagePNLPercent || 0) > 0 ? 'text-green-600' : 'text-red-600') + '">' + Number(summary.averagePNLPercent || 0).toFixed(2) + ' %</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Total Trades</td><td class="border border-gray-200 px-2 py-1.5">' + Number(trades.total || 0) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Winning Trades</td><td class="border border-gray-200 px-2 py-1.5 text-green-600">' + Number(trades.profitableCount || 0) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Losing Trades</td><td class="border border-gray-200 px-2 py-1.5 text-red-600">' + Number(trades.lossMakingCount || 0) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Win Rate</td><td class="border border-gray-200 px-2 py-1.5">' + Number(trades.profitabilityPercent || 0).toFixed(1) + ' %</td></tr>' +
+                '</table>' +
+            '</div>'
+        );
+
+        if (result.candles) {
+            chartsHtml.push(
+                '<div class="flex-1 min-w-[480px] border border-gray-200 rounded p-3">' +
+                    '<div class="font-semibold text-center pb-2 border-b border-gray-200 mb-2">' + escapeHtml(period) + '</div>' +
+                    '<div class="chart" data-candles="' + escapeAttr(String(result.candles).replace(/"/g, '&quot;')) + '" data-title="' +
+                        escapeAttr(result.exchange + ' - ' + result.symbol + ' - ' + result.strategyName + ' - ' + period) + '"></div>' +
+                '</div>'
+            );
+        } else {
+            chartsHtml.push(
+                '<div class="flex-1 min-w-[480px] border border-gray-200 rounded p-3">' +
+                    '<div class="font-semibold text-center pb-2 border-b border-gray-200 mb-2">' + escapeHtml(period) + '</div>' +
+                    '<p class="text-gray-500 text-center py-4">No chart data</p>' +
+                '</div>'
+            );
+        }
+
+        let tradesRowsHtml = '';
+        signalRows.forEach((row, index) => {
+            let signalIcon = '<span class="text-gray-300">-</span>';
+            if (row.signal === 'long') signalIcon = '<i class="fas fa-circle-chevron-up text-green-600" title="Long"></i>';
+            else if (row.signal === 'short') signalIcon = '<i class="fas fa-circle-chevron-down text-red-600" title="Short"></i>';
+            else if (row.signal === 'close') signalIcon = '<i class="fas fa-xmark text-gray-500" title="Close"></i>';
+
+            let aiHtml = '<span class="text-gray-400 italic">-</span>';
+            if (row.ai) {
+                aiHtml = '<span class="' + (row.ai.confirmed ? 'text-green-600' : 'text-red-600') + ' font-medium">' +
+                    (row.ai.confirmed ? 'Confirmed' : 'Rejected') + ' (' + Number((row.ai.confidence || 0) * 100).toFixed(0) + '%)</span>';
             }
-            if (data.status === 'failed') {
-                clearInterval(timer);
-                runButton.disabled = false;
-                runButton.classList.remove('opacity-50', 'cursor-not-allowed');
-                setProgress(data.progressPercent || 0, data.error || 'Backtest gagal');
-            }
+
+            tradesRowsHtml += '<tr class="hover:bg-gray-100">' +
+                '<td class="border border-gray-200 px-2 py-1.5">' + (index + 1) + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1.5 whitespace-nowrap">' + escapeHtml(formatDateTime((row.time || 0) * 1000)) + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1.5">' + Number(row.price || 0).toFixed(2) + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1.5">' + signalIcon + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1.5 text-xs">' + aiHtml + '</td>' +
+            '</tr>';
+        });
+
+        tradesHtml.push(
+            '<div class="flex-1 min-w-[580px] border border-gray-200 rounded">' +
+                '<div class="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-center">' + escapeHtml(period) + ' (' + signalRows.length + ' signals)</div>' +
+                '<div class="overflow-x-auto max-h-[400px] overflow-y-auto">' +
+                    (signalRows.length > 0
+                        ? '<table class="backtest-table w-full border-collapse text-[13px]"><thead class="sticky top-0 bg-gray-50"><tr><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">#</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Time</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Price</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Signal</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">AI Analysis</th></tr></thead><tbody>' + tradesRowsHtml + '</tbody></table>'
+                        : '<p class="text-gray-500 text-center py-4">No signals</p>') +
+                '</div>' +
+            '</div>'
+        );
+
+        let signalRowsFull = '';
+        (result.rows || []).forEach(row => {
+            let signalCell = '<span class="text-gray-300">-</span>';
+            if (row.signal === 'long') signalCell = '<i class="fas fa-circle-chevron-up text-green-600"></i>';
+            else if (row.signal === 'short') signalCell = '<i class="fas fa-circle-chevron-down text-red-600"></i>';
+            else if (row.signal === 'close') signalCell = '<i class="fas fa-xmark text-gray-500"></i>';
+
+            let debugCells = '';
+            indicatorKeys.forEach(key => {
+                const value = row.debug && row.debug[key] !== undefined ? row.debug[key] : '-';
+                const out = typeof value === 'number' ? value.toFixed(4) : value;
+                debugCells += '<td class="border border-gray-200 px-2 py-1">' + escapeHtml(out) + '</td>';
+            });
+
+            signalRowsFull += '<tr class="hover:bg-gray-100">' +
+                '<td class="border border-gray-200 px-2 py-1 whitespace-nowrap">' + escapeHtml(formatDateTime((row.time || 0) * 1000)) + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1">' + Number(row.price || 0).toFixed(2) + '</td>' +
+                '<td class="border border-gray-200 px-2 py-1">' + signalCell + '</td>' +
+                debugCells +
+            '</tr>';
+        });
+
+        let signalHeader = '<th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Time</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Price</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Signal</th>';
+        indicatorKeys.forEach(key => {
+            signalHeader += '<th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">' + escapeHtml(key) + '</th>';
+        });
+
+        signalHtml.push(
+            '<div class="flex-1 min-w-[780px] border border-gray-200 rounded">' +
+                '<div class="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-center">' + escapeHtml(period) + ' (' + (result.rows || []).length + ' rows)</div>' +
+                '<div class="overflow-x-auto max-h-[500px] overflow-y-auto">' +
+                    ((result.rows || []).length > 0
+                        ? '<table class="backtest-table w-full border-collapse text-[13px]"><thead class="sticky top-0 bg-gray-50"><tr>' + signalHeader + '</tr></thead><tbody>' + signalRowsFull + '</tbody></table>'
+                        : '<p class="text-gray-500 text-center py-4">No data</p>') +
+                '</div>' +
+            '</div>'
+        );
+    });
+
+    document.getElementById('realtime-summary-row').innerHTML = summaryHtml.join('');
+    document.getElementById('realtime-charts-row').innerHTML = chartsHtml.join('');
+    document.getElementById('realtime-trades-row').innerHTML = tradesHtml.join('');
+    document.getElementById('realtime-signal-row').innerHTML = signalHtml.join('');
+
+    if (window.initBacktestCharts) {
+        window.initBacktestCharts(document.getElementById('realtime-results'));
+    }
+}
+
+async function upsertPeriodDetail(period) {
+    if (!activeJobId || periodDetails.has(period)) return;
+    try {
+        const detail = await fetchPeriodDetail(period);
+        periodDetails.set(period, detail);
+        if (!metaData) {
+            metaData = {
+                strategyName: detail.strategyName,
+                displaySymbol: detail.displaySymbol
+            };
+        }
+        renderRealtimeLayout();
+    } catch (_error) {
+        // detail not ready yet; next snapshot/poll will retry
+    }
+}
+
+function applySnapshotPayload(payload) {
+    setProgress(payload.progressPercent || 0, payload.message || 'Memproses...');
+    renderTimeframeStatus(payload.snapshot || {});
+
+    const states = payload.snapshot && payload.snapshot.periodStates ? payload.snapshot.periodStates : {};
+    Object.keys(states).forEach(period => {
+        if (states[period] === 'done') {
+            upsertPeriodDetail(period);
+        }
+    });
+
+    if (payload.status === 'done' || payload.status === 'failed') {
+        setRunButtonEnabled(true);
+        cleanupChannels();
+        if (payload.status === 'failed') {
+            setProgress(payload.progressPercent || 0, payload.error || 'Backtest gagal');
+        }
+    }
+}
+
+async function fetchAndApplySnapshot(snapshotUrl) {
+    const res = await fetch(snapshotUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+    if (!res.ok) throw new Error('Gagal mengambil snapshot job');
+    const payload = await res.json();
+    applySnapshotPayload(payload);
+}
+
+function startSnapshotPolling(snapshotUrl) {
+    if (pollingTimer) return;
+    pollingTimer = setInterval(async function() {
+        try {
+            await fetchAndApplySnapshot(snapshotUrl);
         } catch (error) {
-            clearInterval(timer);
-            runButton.disabled = false;
-            runButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan saat polling status');
+            setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan saat polling snapshot');
+            setRunButtonEnabled(true);
+            cleanupChannels();
         }
     }, 1000);
 }
 
+function connectSse(streamUrl) {
+    if (!window.EventSource) return;
+    activeSse = new EventSource(streamUrl);
+
+    activeSse.addEventListener('snapshot', function(event) {
+        try {
+            applySnapshotPayload(JSON.parse(event.data));
+        } catch (_error) {}
+    });
+
+    activeSse.addEventListener('job_progress', function(event) {
+        try {
+            const payload = JSON.parse(event.data);
+            const data = payload.data || {};
+            setProgress(data.progressPercent || 0, data.message || 'Memproses...');
+        } catch (_error) {}
+    });
+
+    activeSse.addEventListener('timeframe_done', function(event) {
+        try {
+            const payload = JSON.parse(event.data);
+            const data = payload.data || {};
+            if (data.period) upsertPeriodDetail(data.period);
+        } catch (_error) {}
+    });
+
+    activeSse.addEventListener('timeframe_failed', function(event) {
+        try {
+            const payload = JSON.parse(event.data);
+            const data = payload.data || {};
+            if (data.period) {
+                const currentPercent = parseFloat(progressBar.style.width || '0');
+                setProgress(currentPercent, data.message || (data.period + ' gagal'));
+            }
+        } catch (_error) {}
+    });
+
+    activeSse.addEventListener('job_done', function() {
+        setProgress(100, 'Semua timeframe selesai');
+    });
+
+    activeSse.addEventListener('job_failed', function(event) {
+        try {
+            const payload = JSON.parse(event.data);
+            const data = payload.data || {};
+            setProgress(0, data.error || 'Backtest gagal');
+        } catch (_error) {
+            setProgress(0, 'Backtest gagal');
+        }
+    });
+}
+
 backtestForm.addEventListener('submit', async function(event) {
     event.preventDefault();
-    runButton.disabled = true;
-    runButton.classList.add('opacity-50', 'cursor-not-allowed');
+    resetRealtimeState();
+    setRunButtonEnabled(false);
     progressPanel.classList.remove('hidden');
     setProgress(2, 'Mengirim request multi-timeframe backtest...');
 
     try {
         const formData = new FormData(backtestForm);
         const body = new URLSearchParams();
-        formData.forEach(function(value, key) {
-            body.append(key, String(value));
-        });
+        formData.forEach((value, key) => body.append(key, String(value)));
 
         const res = await fetch(backtestForm.dataset.asyncEndpoint, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body
         });
         if (!res.ok) {
             const data = await res.json().catch(function() { return {}; });
             throw new Error(data.error || 'Gagal membuat job multi-timeframe backtest');
         }
+
         const data = await res.json();
+        activeJobId = data.jobId;
         setProgress(5, 'Job dibuat, menunggu eksekusi...');
-        pollJob(data.statusUrl, data.resultUrl);
+
+        // Keep polling always as source-of-truth sync, even when SSE is active.
+        startSnapshotPolling(data.snapshotUrl);
+        connectSse(data.streamUrl);
+        await fetchAndApplySnapshot(data.snapshotUrl);
     } catch (error) {
-        runButton.disabled = false;
-        runButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        setRunButtonEnabled(true);
         setProgress(0, error instanceof Error ? error.message : 'Terjadi kesalahan');
     }
 });
 </script>
+
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/techan.js/0.8.0/techan.min.js"></script>
+<script src="/js/backtest.js?v=<%= assetVersion %>"></script>

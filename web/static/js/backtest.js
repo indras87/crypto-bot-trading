@@ -1,6 +1,10 @@
-document.addEventListener('DOMContentLoaded', function () {
+let backtestChartInstanceCounter = 0;
+
+function initializeBacktestCharts(rootElement) {
+  const root = rootElement || document;
+
   // Debug toggle buttons
-  document.querySelectorAll('table.backtest-table').forEach(function (table) {
+  root.querySelectorAll('table.backtest-table').forEach(function (table) {
     table.addEventListener('click', function (e) {
       if (e.target.matches('a.button-debug-toggle')) {
         e.preventDefault();
@@ -17,8 +21,10 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   // Initialize all chart elements (supports single and multi-timeframe pages)
-  document.querySelectorAll('.chart').forEach(function (chart, chartIndex) {
-    initChart(chart, chartIndex);
+  root.querySelectorAll('.chart:not([data-chart-init="1"])').forEach(function (chart) {
+    chart.dataset.chartInit = '1';
+    const nextChartIndex = backtestChartInstanceCounter++;
+    initChart(chart, nextChartIndex);
   });
 
   function initChart(chart, chartIndex) {
@@ -271,4 +277,9 @@ document.addEventListener('DOMContentLoaded', function () {
       svg.select('g.tradearrow').call(tradearrow.refresh);
     }
   }
+}
+
+window.initBacktestCharts = initializeBacktestCharts;
+document.addEventListener('DOMContentLoaded', function () {
+  initializeBacktestCharts(document);
 });
