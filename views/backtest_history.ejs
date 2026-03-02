@@ -71,6 +71,10 @@
                         <option value="roi" <%= currentFilters.sortBy === 'roi' ? 'selected' : '' %>>Sort: ROI</option>
                         <option value="win_rate" <%= currentFilters.sortBy === 'win_rate' ? 'selected' : '' %>>Sort: Win Rate</option>
                         <option value="sharpe" <%= currentFilters.sortBy === 'sharpe' ? 'selected' : '' %>>Sort: Sharpe</option>
+                        <option value="profit_factor" <%= currentFilters.sortBy === 'profit_factor' ? 'selected' : '' %>>Sort: Profit Factor</option>
+                        <option value="expectancy" <%= currentFilters.sortBy === 'expectancy' ? 'selected' : '' %>>Sort: Expectancy</option>
+                        <option value="calmar" <%= currentFilters.sortBy === 'calmar' ? 'selected' : '' %>>Sort: Calmar</option>
+                        <option value="confidence" <%= currentFilters.sortBy === 'confidence' ? 'selected' : '' %>>Sort: Confidence</option>
                         <option value="max_drawdown" <%= currentFilters.sortBy === 'max_drawdown' ? 'selected' : '' %>>Sort: Max Drawdown</option>
                         <option value="trades" <%= currentFilters.sortBy === 'trades' ? 'selected' : '' %>>Sort: Total Trades</option>
                         <option value="created_at" <%= currentFilters.sortBy === 'created_at' ? 'selected' : '' %>>Sort: Created At</option>
@@ -125,16 +129,29 @@
                                 <a href="<%= sortLink('sharpe') %>" class="text-blue-600 hover:underline">Sharpe</a>
                             </th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('profit_factor') %>" class="text-blue-600 hover:underline">Profit Factor</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('expectancy') %>" class="text-blue-600 hover:underline">Expectancy</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('calmar') %>" class="text-blue-600 hover:underline">Calmar</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                <a href="<%= sortLink('confidence') %>" class="text-blue-600 hover:underline">Confidence</a>
+                            </th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
                                 <a href="<%= sortLink('max_drawdown') %>" class="text-blue-600 hover:underline">Max DD</a>
                             </th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Hours</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Options</th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Group</th>
                         </tr>
                     </thead>
                     <tbody>
                         <% if (historyRows.length === 0) { %>
                             <tr>
-                                <td colspan="15" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
+                                <td colspan="20" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
                             </tr>
                         <% } %>
 
@@ -152,8 +169,28 @@
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.win_rate.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5 <%= row.total_profit_percent >= 0 ? 'text-green-600' : 'text-red-600' %>"><%= row.total_profit_percent.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.sharpe_ratio.toFixed(3) %></td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.profit_factor.toFixed(3) %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 <%= row.expectancy_percent >= 0 ? 'text-green-600' : 'text-red-600' %>"><%= row.expectancy_percent.toFixed(3) %> %</td>
+                                <td class="border border-gray-200 px-2 py-1.5"><%= row.calmar_ratio.toFixed(3) %></td>
+                                <td class="border border-gray-200 px-2 py-1.5">
+                                    <span class="px-1.5 py-0.5 rounded text-xs <%= row.metrics_confidence === 'high' ? 'bg-green-100 text-green-700' : (row.metrics_confidence === 'medium' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700') %>" title="<%= row.metrics_confidence_reason || '' %>">
+                                        <%= row.metrics_confidence %>
+                                    </span>
+                                </td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-red-600"><%= row.max_drawdown.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-center"><%= row.hours %></td>
+                                <td class="border border-gray-200 px-2 py-1.5 text-center">
+                                    <button
+                                        type="button"
+                                        class="show-strategy-options-btn px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 cursor-pointer"
+                                        data-strategy="<%= row.strategy %>"
+                                        data-pair="<%= row.exchange %>:<%= row.displaySymbol %>"
+                                        data-period="<%= row.period %>"
+                                        data-options="<%= encodeURIComponent(row.strategy_options_json || '{}') %>"
+                                    >
+                                        View JSON
+                                    </button>
+                                </td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-xs text-gray-500" title="<%= row.run_group_id %>"><%= row.run_group_id.substring(0, 8) %></td>
                             </tr>
                         <% }); %>
@@ -175,3 +212,99 @@
         </div>
     </div>
 </div>
+
+<div id="strategy-options-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+    <div class="bg-white w-full max-w-3xl rounded border border-gray-200 shadow-lg">
+        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+            <div>
+                <div class="font-semibold">Strategy Options (JSON)</div>
+                <div id="strategy-options-meta" class="text-xs text-gray-500"></div>
+            </div>
+            <button id="strategy-options-close-top" type="button" class="px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer">Close</button>
+        </div>
+        <div class="p-4">
+            <pre id="strategy-options-content" class="bg-gray-50 border border-gray-200 rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words"></pre>
+        </div>
+        <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
+            <button id="strategy-options-copy" type="button" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer">Copy JSON</button>
+            <button id="strategy-options-close-bottom" type="button" class="px-3 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-900 cursor-pointer">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const modal = document.getElementById('strategy-options-modal');
+    const contentEl = document.getElementById('strategy-options-content');
+    const metaEl = document.getElementById('strategy-options-meta');
+    const copyBtn = document.getElementById('strategy-options-copy');
+    const closeTopBtn = document.getElementById('strategy-options-close-top');
+    const closeBottomBtn = document.getElementById('strategy-options-close-bottom');
+    let currentJsonText = '{}';
+
+    function openModal(meta, jsonText) {
+        metaEl.textContent = meta;
+        contentEl.textContent = jsonText;
+        currentJsonText = jsonText;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeModal() {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function normalizeJson(raw) {
+        if (!raw || !raw.trim()) return '{}';
+        try {
+            return JSON.stringify(JSON.parse(raw), null, 2);
+        } catch (_err) {
+            return raw;
+        }
+    }
+
+    document.querySelectorAll('.show-strategy-options-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const strategy = this.dataset.strategy || '-';
+            const pair = this.dataset.pair || '-';
+            const period = this.dataset.period || '-';
+            const encoded = this.dataset.options || '%7B%7D';
+            let decoded = '{}';
+            try {
+                decoded = decodeURIComponent(encoded);
+            } catch (_err) {}
+
+            const meta = strategy + ' | ' + pair + ' | ' + period;
+            openModal(meta, normalizeJson(decoded));
+        });
+    });
+
+    closeTopBtn.addEventListener('click', closeModal);
+    closeBottomBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', function(event) {
+        if (event.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
+            closeModal();
+        }
+    });
+
+    copyBtn.addEventListener('click', async function() {
+        try {
+            await navigator.clipboard.writeText(currentJsonText);
+            copyBtn.textContent = 'Copied';
+            setTimeout(function() {
+                copyBtn.textContent = 'Copy JSON';
+            }, 1200);
+        } catch (_err) {
+            copyBtn.textContent = 'Copy failed';
+            setTimeout(function() {
+                copyBtn.textContent = 'Copy JSON';
+            }, 1200);
+        }
+    });
+})();
+</script>

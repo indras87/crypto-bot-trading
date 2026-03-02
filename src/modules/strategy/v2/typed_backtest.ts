@@ -63,6 +63,11 @@ export interface BacktestSummary {
   averageProfitPercent: number;
   maxDrawdown: number;
   sharpeRatio: number;
+  profitFactor: number;
+  expectancyPercent: number;
+  calmarRatio: number;
+  metricsConfidence: 'low' | 'medium' | 'high';
+  metricsConfidenceReason?: string;
 }
 
 export interface BacktestRow extends SignalRow {
@@ -540,11 +545,32 @@ export class TypedBacktestEngine {
     const totalProfitPercent = ((capital - initialCapital) / initialCapital) * 100;
     const avgProfit = trades.length > 0 ? trades.reduce((sum, t) => sum + t.profitPercent, 0) / trades.length : 0;
 
-    const returns = trades.map(t => t.profitPercent);
+    const returns = trades.map(t => t.profitPercent / 100);
     const avgReturn = returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : 0;
     const variance = returns.length > 1 ? returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length : 0;
     const stdDev = Math.sqrt(variance);
-    const sharpeRatio = stdDev > 0 ? (avgReturn - 3) / stdDev : 0;
+    const sharpeRatioRaw = stdDev > 0 ? avgReturn / stdDev : 0;
+
+    const grossProfitPercent = trades.filter(t => t.profitPercent > 0).reduce((sum, t) => sum + t.profitPercent, 0);
+    const grossLossAbsPercent = Math.abs(trades.filter(t => t.profitPercent < 0).reduce((sum, t) => sum + t.profitPercent, 0));
+    const profitFactorRaw = grossLossAbsPercent > 0 ? grossProfitPercent / grossLossAbsPercent : grossProfitPercent > 0 ? 999 : 0;
+    const calmarRatioRaw = maxDrawdown > 0 ? totalProfitPercent / maxDrawdown : totalProfitPercent > 0 ? 999 : 0;
+    const expectancyPercent = avgProfit;
+
+    let metricsConfidence: 'low' | 'medium' | 'high' = 'low';
+    let metricsConfidenceReason = 'Sample too small (<5 trades)';
+    if (trades.length >= 20) {
+      metricsConfidence = 'high';
+      metricsConfidenceReason = 'Sufficient sample size (>=20 trades)';
+    } else if (trades.length >= 5) {
+      metricsConfidence = 'medium';
+      metricsConfidenceReason = 'Moderate sample size (5-19 trades)';
+    }
+
+    const clampMetric = (value: number): number => {
+      if (!Number.isFinite(value)) return 0;
+      return Math.max(-999, Math.min(999, value));
+    };
 
     const summary: BacktestSummary = {
       totalTrades: trades.length,
@@ -554,7 +580,12 @@ export class TypedBacktestEngine {
       totalProfitPercent,
       averageProfitPercent: avgProfit,
       maxDrawdown,
-      sharpeRatio
+      sharpeRatio: clampMetric(sharpeRatioRaw),
+      profitFactor: clampMetric(profitFactorRaw),
+      expectancyPercent: clampMetric(expectancyPercent),
+      calmarRatio: clampMetric(calmarRatioRaw),
+      metricsConfidence,
+      metricsConfidenceReason
     };
 
     return { backtestRows, trades, summary };

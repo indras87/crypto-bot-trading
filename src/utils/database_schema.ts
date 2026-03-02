@@ -129,6 +129,11 @@ CREATE TABLE IF NOT EXISTS backtest_runs (
   average_profit_percent REAL         NOT NULL,
   max_drawdown           REAL         NOT NULL,
   sharpe_ratio           REAL         NOT NULL,
+  profit_factor          REAL         NOT NULL DEFAULT 0,
+  expectancy_percent     REAL         NOT NULL DEFAULT 0,
+  calmar_ratio           REAL         NOT NULL DEFAULT 0,
+  metrics_confidence     VARCHAR(16)  NOT NULL DEFAULT 'low',
+  metrics_confidence_reason TEXT      NULL,
   created_at             BIGINT       NOT NULL
 );
 

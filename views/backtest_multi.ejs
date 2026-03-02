@@ -135,12 +135,6 @@
             </div>
         </div>
 
-        <div class="bg-white border border-gray-200 rounded mb-4">
-            <div class="px-4 py-3 border-b border-gray-200 font-medium">Signal History</div>
-            <div class="p-4 overflow-x-auto">
-                <div id="realtime-signal-row" class="flex gap-4"></div>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -248,7 +242,6 @@ function resetRealtimeState() {
     document.getElementById('realtime-summary-row').innerHTML = '';
     document.getElementById('realtime-charts-row').innerHTML = '';
     document.getElementById('realtime-trades-row').innerHTML = '';
-    document.getElementById('realtime-signal-row').innerHTML = '';
 }
 
 function getStatusStyle(status) {
@@ -328,15 +321,13 @@ function renderRealtimeLayout() {
     const summaryHtml = [];
     const chartsHtml = [];
     const tradesHtml = [];
-    const signalHtml = [];
 
     periods.forEach(period => {
         const result = periodDetails.get(period);
         if (!result) return;
         const summary = result.summary || {};
         const trades = summary.trades || { total: 0, profitableCount: 0, lossMakingCount: 0, profitabilityPercent: 0 };
-        const signalRows = (result.rows || []).filter(r => r.signal);
-        const indicatorKeys = result.indicatorKeys || [];
+        const eventRows = (result.rows || []).filter(r => r.signal);
 
         summaryHtml.push(
             '<div class="flex-1 min-w-[380px] border border-gray-200 rounded p-3">' +
@@ -346,12 +337,16 @@ function renderRealtimeLayout() {
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Final Capital</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.finalCapital || 0).toFixed(2) + ' $</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Net ROI</td><td class="border border-gray-200 px-2 py-1.5 ' + (Number(summary.netProfit || 0) > 0 ? 'text-green-600' : 'text-red-600') + '">' + Number(summary.netProfit || 0).toFixed(2) + ' %</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Sharpe Ratio</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.sharpeRatio || 0).toFixed(2) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Profit Factor</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.profitFactor || 0).toFixed(3) + '</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Expectancy</td><td class="border border-gray-200 px-2 py-1.5 ' + (Number(summary.expectancyPercent || 0) > 0 ? 'text-green-600' : 'text-red-600') + '">' + Number(summary.expectancyPercent || 0).toFixed(3) + ' %</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Calmar Ratio</td><td class="border border-gray-200 px-2 py-1.5">' + Number(summary.calmarRatio || 0).toFixed(3) + '</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Max Drawdown</td><td class="border border-gray-200 px-2 py-1.5 text-red-600">' + Number(summary.maxDrawdown || 0).toFixed(2) + ' %</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Avg Return/Trade</td><td class="border border-gray-200 px-2 py-1.5 ' + (Number(summary.averagePNLPercent || 0) > 0 ? 'text-green-600' : 'text-red-600') + '">' + Number(summary.averagePNLPercent || 0).toFixed(2) + ' %</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Total Trades</td><td class="border border-gray-200 px-2 py-1.5">' + Number(trades.total || 0) + '</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Winning Trades</td><td class="border border-gray-200 px-2 py-1.5 text-green-600">' + Number(trades.profitableCount || 0) + '</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Losing Trades</td><td class="border border-gray-200 px-2 py-1.5 text-red-600">' + Number(trades.lossMakingCount || 0) + '</td></tr>' +
                     '<tr><td class="border border-gray-200 px-2 py-1.5">Win Rate</td><td class="border border-gray-200 px-2 py-1.5">' + Number(trades.profitabilityPercent || 0).toFixed(1) + ' %</td></tr>' +
+                    '<tr><td class="border border-gray-200 px-2 py-1.5">Confidence</td><td class="border border-gray-200 px-2 py-1.5">' + escapeHtml(String(summary.metricsConfidence || 'low')) + '</td></tr>' +
                 '</table>' +
             '</div>'
         );
@@ -374,7 +369,7 @@ function renderRealtimeLayout() {
         }
 
         let tradesRowsHtml = '';
-        signalRows.forEach((row, index) => {
+        eventRows.forEach((row, index) => {
             let signalIcon = '<span class="text-gray-300">-</span>';
             if (row.signal === 'long') signalIcon = '<i class="fas fa-circle-chevron-up text-green-600" title="Long"></i>';
             else if (row.signal === 'short') signalIcon = '<i class="fas fa-circle-chevron-down text-red-600" title="Short"></i>';
@@ -397,49 +392,11 @@ function renderRealtimeLayout() {
 
         tradesHtml.push(
             '<div class="flex-1 min-w-[580px] border border-gray-200 rounded">' +
-                '<div class="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-center">' + escapeHtml(period) + ' (' + signalRows.length + ' signals)</div>' +
+                '<div class="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-center">' + escapeHtml(period) + ' (' + eventRows.length + ' signals)</div>' +
                 '<div class="overflow-x-auto max-h-[400px] overflow-y-auto">' +
-                    (signalRows.length > 0
+                    (eventRows.length > 0
                         ? '<table class="backtest-table w-full border-collapse text-[13px]"><thead class="sticky top-0 bg-gray-50"><tr><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">#</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Time</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Price</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Signal</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">AI Analysis</th></tr></thead><tbody>' + tradesRowsHtml + '</tbody></table>'
                         : '<p class="text-gray-500 text-center py-4">No signals</p>') +
-                '</div>' +
-            '</div>'
-        );
-
-        let signalRowsFull = '';
-        (result.rows || []).forEach(row => {
-            let signalCell = '<span class="text-gray-300">-</span>';
-            if (row.signal === 'long') signalCell = '<i class="fas fa-circle-chevron-up text-green-600"></i>';
-            else if (row.signal === 'short') signalCell = '<i class="fas fa-circle-chevron-down text-red-600"></i>';
-            else if (row.signal === 'close') signalCell = '<i class="fas fa-xmark text-gray-500"></i>';
-
-            let debugCells = '';
-            indicatorKeys.forEach(key => {
-                const value = row.debug && row.debug[key] !== undefined ? row.debug[key] : '-';
-                const out = typeof value === 'number' ? value.toFixed(4) : value;
-                debugCells += '<td class="border border-gray-200 px-2 py-1">' + escapeHtml(out) + '</td>';
-            });
-
-            signalRowsFull += '<tr class="hover:bg-gray-100">' +
-                '<td class="border border-gray-200 px-2 py-1 whitespace-nowrap">' + escapeHtml(formatDateTime((row.time || 0) * 1000)) + '</td>' +
-                '<td class="border border-gray-200 px-2 py-1">' + Number(row.price || 0).toFixed(2) + '</td>' +
-                '<td class="border border-gray-200 px-2 py-1">' + signalCell + '</td>' +
-                debugCells +
-            '</tr>';
-        });
-
-        let signalHeader = '<th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Time</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Price</th><th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">Signal</th>';
-        indicatorKeys.forEach(key => {
-            signalHeader += '<th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-1.5">' + escapeHtml(key) + '</th>';
-        });
-
-        signalHtml.push(
-            '<div class="flex-1 min-w-[780px] border border-gray-200 rounded">' +
-                '<div class="px-3 py-2 bg-gray-50 border-b border-gray-200 font-medium text-center">' + escapeHtml(period) + ' (' + (result.rows || []).length + ' rows)</div>' +
-                '<div class="overflow-x-auto max-h-[500px] overflow-y-auto">' +
-                    ((result.rows || []).length > 0
-                        ? '<table class="backtest-table w-full border-collapse text-[13px]"><thead class="sticky top-0 bg-gray-50"><tr>' + signalHeader + '</tr></thead><tbody>' + signalRowsFull + '</tbody></table>'
-                        : '<p class="text-gray-500 text-center py-4">No data</p>') +
                 '</div>' +
             '</div>'
         );
@@ -448,7 +405,6 @@ function renderRealtimeLayout() {
     document.getElementById('realtime-summary-row').innerHTML = summaryHtml.join('');
     document.getElementById('realtime-charts-row').innerHTML = chartsHtml.join('');
     document.getElementById('realtime-trades-row').innerHTML = tradesHtml.join('');
-    document.getElementById('realtime-signal-row').innerHTML = signalHtml.join('');
 
     if (window.initBacktestCharts) {
         window.initBacktestCharts(document.getElementById('realtime-results'));

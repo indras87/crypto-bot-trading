@@ -62,12 +62,18 @@ interface BacktestHistoryRow {
   period: string;
   hours: number;
   strategy: string;
+  strategy_options_json?: string;
   use_ai: number;
   total_trades: number;
   win_rate: number;
   total_profit_percent: number;
   sharpe_ratio: number;
   max_drawdown: number;
+  profit_factor: number;
+  expectancy_percent: number;
+  calmar_ratio: number;
+  metrics_confidence: 'low' | 'medium' | 'high';
+  metrics_confidence_reason?: string;
   created_at: number;
 }
 
@@ -484,6 +490,11 @@ export class BacktestController extends BaseController {
         initialCapital,
         finalCapital: initialCapital * (1 + result.summary.totalProfitPercent / 100),
         sharpeRatio: result.summary.sharpeRatio,
+        profitFactor: result.summary.profitFactor,
+        expectancyPercent: result.summary.expectancyPercent,
+        calmarRatio: result.summary.calmarRatio,
+        metricsConfidence: result.summary.metricsConfidence,
+        metricsConfidenceReason: result.summary.metricsConfidenceReason,
         averagePNLPercent: result.summary.averageProfitPercent,
         trades: {
           total: result.summary.totalTrades,
@@ -551,6 +562,11 @@ export class BacktestController extends BaseController {
       average_profit_percent: summary.averageProfitPercent,
       max_drawdown: summary.maxDrawdown,
       sharpe_ratio: summary.sharpeRatio,
+      profit_factor: summary.profitFactor,
+      expectancy_percent: summary.expectancyPercent,
+      calmar_ratio: summary.calmarRatio,
+      metrics_confidence: summary.metricsConfidence,
+      metrics_confidence_reason: summary.metricsConfidenceReason,
       created_at: Math.floor(Date.now() / 1000)
     };
   }

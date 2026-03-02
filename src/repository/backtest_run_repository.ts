@@ -30,6 +30,11 @@ export interface BacktestRunRecord {
   average_profit_percent: number;
   max_drawdown: number;
   sharpe_ratio: number;
+  profit_factor: number;
+  expectancy_percent: number;
+  calmar_ratio: number;
+  metrics_confidence: 'low' | 'medium' | 'high';
+  metrics_confidence_reason?: string;
   created_at: number;
 }
 
@@ -52,6 +57,10 @@ const SORT_COLUMNS: Record<string, string> = {
   win_rate: 'win_rate',
   sharpe: 'sharpe_ratio',
   max_drawdown: 'max_drawdown',
+  profit_factor: 'profit_factor',
+  expectancy: 'expectancy_percent',
+  calmar: 'calmar_ratio',
+  confidence: "CASE metrics_confidence WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
   trades: 'total_trades',
   created_at: 'created_at'
 };
@@ -66,13 +75,15 @@ export class BacktestRunRepository {
         strategy, strategy_options_json, initial_capital, use_ai,
         start_time, end_time, total_trades, profitable_trades, losing_trades,
         win_rate, total_profit_percent, average_profit_percent, max_drawdown,
-        sharpe_ratio, created_at
+        sharpe_ratio, profit_factor, expectancy_percent, calmar_ratio,
+        metrics_confidence, metrics_confidence_reason, created_at
       ) VALUES (
         $run_group_id, $run_type, $exchange, $symbol, $period, $hours,
         $strategy, $strategy_options_json, $initial_capital, $use_ai,
         $start_time, $end_time, $total_trades, $profitable_trades, $losing_trades,
         $win_rate, $total_profit_percent, $average_profit_percent, $max_drawdown,
-        $sharpe_ratio, $created_at
+        $sharpe_ratio, $profit_factor, $expectancy_percent, $calmar_ratio,
+        $metrics_confidence, $metrics_confidence_reason, $created_at
       )
     `);
 

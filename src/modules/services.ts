@@ -256,6 +256,26 @@ const services: Services = {
 
     // Run schema on every startup so new tables/indexes are created for existing DB files too.
     myDb.exec(DATABASE_SCHEMA);
+    // Backward-compatible migration for existing DB files that predate extra backtest metric columns.
+    const tableInfo = myDb.prepare('PRAGMA table_info(backtest_runs)').all() as Array<{ name: string }>;
+    const columns = new Set(tableInfo.map(col => col.name));
+    if (!columns.has('profit_factor')) {
+      myDb.exec('ALTER TABLE backtest_runs ADD COLUMN profit_factor REAL NOT NULL DEFAULT 0;');
+    }
+    if (!columns.has('expectancy_percent')) {
+      myDb.exec('ALTER TABLE backtest_runs ADD COLUMN expectancy_percent REAL NOT NULL DEFAULT 0;');
+    }
+    if (!columns.has('calmar_ratio')) {
+      myDb.exec('ALTER TABLE backtest_runs ADD COLUMN calmar_ratio REAL NOT NULL DEFAULT 0;');
+    }
+    if (!columns.has('metrics_confidence')) {
+      myDb.exec("ALTER TABLE backtest_runs ADD COLUMN metrics_confidence VARCHAR(16) NOT NULL DEFAULT 'low';");
+    }
+    if (!columns.has('metrics_confidence_reason')) {
+      myDb.exec('ALTER TABLE backtest_runs ADD COLUMN metrics_confidence_reason TEXT NULL;');
+    }
+    myDb.exec('CREATE INDEX IF NOT EXISTS backtest_runs_profit_factor_idx ON backtest_runs (profit_factor);');
+    myDb.exec('CREATE INDEX IF NOT EXISTS backtest_runs_calmar_idx ON backtest_runs (calmar_ratio);');
 
     return (db = myDb);
   },

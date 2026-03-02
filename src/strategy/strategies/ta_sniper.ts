@@ -31,10 +31,10 @@ type TaSniperThresholdConfig = Pick<
 >;
 
 const TA_SNIPER_TIMEFRAME_PROFILES: Record<string, TaSniperThresholdConfig> = {
-  '1m': { min_confidence: 0.55, min_score: 2.0, min_volume_confirm: 0.45, min_adx: 14, rsi_min: 20, rsi_max: 80, require_divergence_check: false, allow_squeeze_entry: true },
-  '3m': { min_confidence: 0.58, min_score: 2.3, min_volume_confirm: 0.5, min_adx: 16, rsi_min: 22, rsi_max: 78, require_divergence_check: false, allow_squeeze_entry: true },
-  '5m': { min_confidence: 0.62, min_score: 2.6, min_volume_confirm: 0.55, min_adx: 18, rsi_min: 25, rsi_max: 75, require_divergence_check: false, allow_squeeze_entry: true },
-  '15m': { min_confidence: 0.65, min_score: 2.9, min_volume_confirm: 0.6, min_adx: 20, rsi_min: 26, rsi_max: 74, require_divergence_check: false, allow_squeeze_entry: false },
+  '1m': { min_confidence: 0.66, min_score: 2.9, min_volume_confirm: 0.62, min_adx: 22, rsi_min: 26, rsi_max: 74, require_divergence_check: true, allow_squeeze_entry: false },
+  '3m': { min_confidence: 0.62, min_score: 2.6, min_volume_confirm: 0.56, min_adx: 18, rsi_min: 24, rsi_max: 76, require_divergence_check: false, allow_squeeze_entry: true },
+  '5m': { min_confidence: 0.64, min_score: 2.8, min_volume_confirm: 0.6, min_adx: 20, rsi_min: 25, rsi_max: 75, require_divergence_check: true, allow_squeeze_entry: false },
+  '15m': { min_confidence: 0.6, min_score: 2.4, min_volume_confirm: 0.52, min_adx: 16, rsi_min: 22, rsi_max: 78, require_divergence_check: false, allow_squeeze_entry: true },
   '30m': { min_confidence: 0.68, min_score: 3.1, min_volume_confirm: 0.62, min_adx: 22, rsi_min: 28, rsi_max: 72, require_divergence_check: true, allow_squeeze_entry: false },
   '1h': { min_confidence: 0.7, min_score: 3.3, min_volume_confirm: 0.65, min_adx: 24, rsi_min: 30, rsi_max: 70, require_divergence_check: true, allow_squeeze_entry: false },
   '4h': { min_confidence: 0.72, min_score: 3.5, min_volume_confirm: 0.68, min_adx: 25, rsi_min: 30, rsi_max: 70, require_divergence_check: true, allow_squeeze_entry: false },
@@ -42,10 +42,10 @@ const TA_SNIPER_TIMEFRAME_PROFILES: Record<string, TaSniperThresholdConfig> = {
 };
 
 const TA_SNIPER_ADVANCED_TA_REFRESH_BY_TIMEFRAME: Record<string, number> = {
-  '1m': 6,
+  '1m': 8,
   '3m': 4,
   '5m': 3,
-  '15m': 3,
+  '15m': 2,
   '30m': 2,
   '1h': 2,
   '4h': 1,
