@@ -347,7 +347,7 @@ export class ProfileController extends BaseController {
 
   private async createBot(req: express.Request, res: express.Response): Promise<void> {
     const { id } = req.params;
-    const { name, strategy, pair, interval, capital, mode, status, options } = req.body;
+    const { name, strategy, pair, interval, capital, mode, status, options, useAiValidator } = req.body;
 
     let parsedOptions: Record<string, any> | undefined;
     if (options && options.trim()) {
@@ -366,6 +366,7 @@ export class ProfileController extends BaseController {
       capital: parseFloat(capital),
       mode,
       status: status === 'on' ? 'running' : 'stopped',
+      useAiValidator: useAiValidator === 'on',
       options: parsedOptions,
     });
 
@@ -375,7 +376,7 @@ export class ProfileController extends BaseController {
 
   private async updateBot(req: express.Request, res: express.Response): Promise<void> {
     const { id, botId } = req.params;
-    const { name, strategy, pair, interval, capital, mode, status, options } = req.body;
+    const { name, strategy, pair, interval, capital, mode, status, options, useAiValidator } = req.body;
 
     let parsedOptions: Record<string, any> | undefined;
     if (options && options.trim()) {
@@ -394,6 +395,7 @@ export class ProfileController extends BaseController {
       capital: parseFloat(capital),
       mode,
       status: status === 'on' ? 'running' : 'stopped',
+      useAiValidator: useAiValidator === 'on',
       options: parsedOptions,
     });
 

@@ -97,6 +97,10 @@ interface ExecuteOptions {
   period?: string;
 }
 
+interface LiveExecutionOptions {
+  useAiValidator?: boolean;
+}
+
 // ============== Core Strategy Executor (reusable for trading) ==============
 
 export class StrategyExecutor {
@@ -228,7 +232,8 @@ export class StrategyExecutor {
     exchange: string,
     symbol: string,
     period: string,
-    options: Record<string, any>
+    options: Record<string, any>,
+    liveOptions: LiveExecutionOptions = {}
   ): Promise<'long' | 'short' | 'close' | undefined> {
     const StrategyClass = this.strategyRegistry.getStrategyClass(strategyName);
 
@@ -284,9 +289,10 @@ export class StrategyExecutor {
     const signalRows = await this.execute(strategy, candlesAsc, { useAi: false });
     const lastSignalRow = signalRows[signalRows.length - 1];
     let signal = lastSignalRow?.signal;
+    const shouldUseAiValidator = liveOptions.useAiValidator !== false;
 
-    // AI Filter: Validate signal with AI if enabled and signal exists
-    if (signal && this.aiService && this.aiService.isEnabled()) {
+    // AI Filter: Validate entry signals only (long/short), never close
+    if ((signal === 'long' || signal === 'short') && shouldUseAiValidator && this.aiService && this.aiService.isEnabled()) {
       try {
         const aiInput: AiAnalysisInput = {
           pair: symbol,
@@ -318,8 +324,10 @@ export class StrategyExecutor {
         this.logger.error(`[StrategyExecutor] AI analysis failed: ${e.message} - proceeding with original signal`);
         this.aiStatusService?.recordValidation(false, e.message);
       }
+    } else if (signal && !shouldUseAiValidator) {
+      this.logger.debug(`[StrategyExecutor] AI validator disabled for bot on ${exchange}:${symbol}:${period}`);
     } else if (signal && this.aiStatusService) {
-      // Log AI status when AI is not enabled
+      // Log AI status when AI is not globally enabled/configured
       const aiStatusSummary = this.aiStatusService.getStatusSummary();
       this.logger.debug(`[StrategyExecutor] ${aiStatusSummary}`);
     }

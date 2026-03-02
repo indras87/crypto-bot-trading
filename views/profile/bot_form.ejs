@@ -79,6 +79,14 @@
                 </div>
 
                 <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">AI Validator</label>
+                    <label class="flex items-center">
+                        <input type="checkbox" name="useAiValidator" <%= bot ? ((bot.useAiValidator ?? true) ? 'checked' : '') : '' %> class="mr-2">
+                        <span class="text-sm">Enable AI Validator (Gemini signal validation)</span>
+                    </label>
+                </div>
+
+                <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Strategy Options (JSON)</label>
                     <textarea name="options" id="form-options" rows="5" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm" placeholder='{"option": "value"}'><%= bot && bot.options ? JSON.stringify(bot.options, null, 2) : '' %></textarea>
                     <p class="text-xs text-gray-500 mt-1">Optional: Override default strategy options</p>

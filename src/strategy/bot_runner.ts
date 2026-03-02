@@ -102,7 +102,9 @@ export class BotRunner {
     const isWatchOnly = bot.mode === 'watch';
 
     // Execute strategy
-    const signal = await this.strategyExecutor.executeStrategy(bot.strategy, profile.exchange, bot.pair, bot.interval, bot.options ?? {});
+    const signal = await this.strategyExecutor.executeStrategy(bot.strategy, profile.exchange, bot.pair, bot.interval, bot.options ?? {}, {
+      useAiValidator: bot.useAiValidator ?? true
+    });
 
     if (!signal) return;
 

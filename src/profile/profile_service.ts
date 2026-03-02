@@ -266,6 +266,7 @@ export class ProfileService {
       capital: config.capital,
       mode: config.mode,
       status: 'stopped',
+      useAiValidator: config.useAiValidator,
       options: config.options
     };
 
@@ -305,6 +306,7 @@ export class ProfileService {
       capital: updates.capital ?? existingBot.capital,
       mode: updates.mode ?? existingBot.mode,
       status: updates.status ?? existingBot.status,
+      useAiValidator: updates.useAiValidator ?? existingBot.useAiValidator,
       options: updates.options !== undefined ? updates.options : existingBot.options
     };
 

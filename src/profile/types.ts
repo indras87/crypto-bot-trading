@@ -124,6 +124,7 @@ export interface Bot {
   capital: number;
   mode: BotMode;
   status: BotStatus;
+  useAiValidator?: boolean;
   options?: Record<string, any>;
 }
 
@@ -135,5 +136,6 @@ export interface BotConfig {
   capital: number;
   mode: BotMode;
   status?: BotStatus;
+  useAiValidator?: boolean;
   options?: Record<string, any>;
 }

@@ -35,6 +35,7 @@ export interface Bot {
   capital: number;
   mode: 'watch' | 'trade';
   status: 'stopped' | 'running';
+  useAiValidator?: boolean;
   options?: Record<string, any>;
 }
 

@@ -158,7 +158,8 @@
                                 <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="3">Interval <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="4">Capital <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="5">Mode <span class="sort-icon text-gray-400 ml-1"></span></th>
-                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">AI Validator <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="7">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600">Actions</th>
                             </tr>
                         </thead>
@@ -173,6 +174,11 @@
                                 <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.mode %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.mode === 'trade' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' %>">
                                         <%= bot.mode === 'trade' ? 'Trade' : 'Watch' %>
+                                    </span>
+                                </td>
+                                <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.useAiValidator ?? true %>">
+                                    <span class="px-2 py-1 rounded text-xs <%= (bot.useAiValidator ?? true) ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600' %>">
+                                        <%= (bot.useAiValidator ?? true) ? 'On' : 'Off' %>
                                     </span>
                                 </td>
                                 <td class="py-3 px-3 md:px-4" data-sort-value="<%= bot.status %>">
@@ -442,7 +448,8 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', function() 
                                 <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="3">Interval <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="4">Capital <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="5">Mode <span class="sort-icon text-gray-400 ml-1"></span></th>
-                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="6">AI Validator <span class="sort-icon text-gray-400 ml-1"></span></th>
+                                <th class="text-left py-3 px-4 font-medium text-gray-600 cursor-pointer select-none sortable-header" data-col="7">Active <span class="sort-icon text-gray-400 ml-1"></span></th>
                                 <th class="text-right py-3 px-4 font-medium text-gray-600">Actions</th>
                             </tr>
                         </thead>
@@ -457,6 +464,11 @@ document.getElementById('sidebar-toggle')?.addEventListener('click', function() 
                                 <td class="py-3 px-4" data-sort-value="<%= bot.mode %>">
                                     <span class="px-2 py-1 rounded text-xs <%= bot.mode === 'trade' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' %>">
                                         <%= bot.mode === 'trade' ? 'Trade' : 'Watch' %>
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4" data-sort-value="<%= bot.useAiValidator ?? true %>">
+                                    <span class="px-2 py-1 rounded text-xs <%= (bot.useAiValidator ?? true) ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600' %>">
+                                        <%= (bot.useAiValidator ?? true) ? 'On' : 'Off' %>
                                     </span>
                                 </td>
                                 <td class="py-3 px-4" data-sort-value="<%= bot.status %>">
