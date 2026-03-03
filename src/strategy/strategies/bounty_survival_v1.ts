@@ -311,7 +311,36 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
       allow_short: false,
       pair_symbol: '',
       pair_exchange: '',
-      pair_overrides: {}
+      pair_overrides: {
+        'BNB/USDT:USDT': {
+          adx_min: 22,
+          min_signal_score: 5,
+          trend_buffer_pct: 0.0018,
+          require_breakout: false,
+          allow_long: true,
+          allow_short: false
+        },
+        'XRP/USDT:USDT': {
+          adx_min: 24,
+          min_signal_score: 6,
+          trend_buffer_pct: 0.0022,
+          require_breakout: true,
+          allow_long: true,
+          allow_short: false
+        },
+        'ETH/USDT:USDT': {
+          allow_long: false,
+          allow_short: false
+        },
+        'SOL/USDT:USDT': {
+          allow_long: false,
+          allow_short: false
+        },
+        'ADA/USDT:USDT': {
+          allow_long: false,
+          allow_short: false
+        }
+      }
     };
   }
 
