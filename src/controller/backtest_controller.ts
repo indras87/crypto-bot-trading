@@ -209,6 +209,35 @@ export class BacktestController extends BaseController {
       }
     });
 
+    // Delete multiple backtest runs
+    router.post('/backtest/delete-multiple', async (req: express.Request, res: express.Response) => {
+      try {
+        const ids = req.body.ids;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+          res.redirect('/backtest/history');
+          return;
+        }
+
+        const numericIds = ids.map((id: string | number) => parseInt(String(id), 10)).filter(id => !isNaN(id));
+        if (numericIds.length > 0) {
+          this.backtestRunRepository.deleteByIds(numericIds);
+        }
+
+        const query = req.query as Record<string, string | undefined>;
+        const params = new URLSearchParams();
+        Object.keys(query).forEach(key => {
+          if (query[key]) {
+            params.set(key, query[key]!);
+          }
+        });
+        const redirectUrl = '/backtest/history' + (params.toString() ? '?' + params.toString() : '');
+        res.redirect(redirectUrl);
+      } catch (error) {
+        console.error('Backtest delete error:', error);
+        res.redirect('/backtest/history');
+      }
+    });
+
     // Backtest submit
     router.post('/backtest/submit', async (req: express.Request, res: express.Response) => {
       try {
@@ -452,7 +481,9 @@ export class BacktestController extends BaseController {
     const strategyInstance = this.strategyRegistry.createStrategy(strategy, {
       amount_currency: initialCapital.toString(),
       ...options,
-      timeframe: period
+      timeframe: period,
+      pair_symbol: symbol,
+      pair_exchange: exchange
     });
 
     // Run backtest
@@ -734,96 +765,99 @@ export class BacktestController extends BaseController {
       throw new BadRequestError('Maximum 5 periods allowed');
     }
 
-    return this.backtestJobService.createJob('multi', async ({ setProgress, initPeriods, setPeriodState, setPeriodSummary, setPeriodDetail, setPeriodFailure }) => {
-      const runGroupId = crypto.randomUUID();
-      const multiStartedAt = Date.now();
-      const orderedPeriods = this.orderPeriodsForExecution(periods);
-      const doneResults: Array<{ rawResult: BacktestResult; period: string; viewResult: Record<string, any> }> = [];
+    return this.backtestJobService.createJob(
+      'multi',
+      async ({ setProgress, initPeriods, setPeriodState, setPeriodSummary, setPeriodDetail, setPeriodFailure }) => {
+        const runGroupId = crypto.randomUUID();
+        const multiStartedAt = Date.now();
+        const orderedPeriods = this.orderPeriodsForExecution(periods);
+        const doneResults: Array<{ rawResult: BacktestResult; period: string; viewResult: Record<string, any> }> = [];
 
-      initPeriods(orderedPeriods);
-      setProgress(
-        'running',
-        3,
-        `Starting ${orderedPeriods.length} timeframe(s), concurrency=${effectiveConcurrency}${parsedHours > 168 ? ' (optimized for long range)' : ''}`
-      );
+        initPeriods(orderedPeriods);
+        setProgress(
+          'running',
+          3,
+          `Starting ${orderedPeriods.length} timeframe(s), concurrency=${effectiveConcurrency}${parsedHours > 168 ? ' (optimized for long range)' : ''}`
+        );
 
-      await this.runWithConcurrency(
-        orderedPeriods,
-        effectiveConcurrency,
-        async (period: string) => {
-          try {
-            setPeriodState(period, 'running', `Processing ${period}`);
-            const result = await this.runBacktest({
-              exchange,
-              symbol,
-              period: period as Period,
-              hours: parsedHours,
-              strategy: strategy as StrategyName,
-              initialCapital: parsedInitialCapital,
-              options: parsedOptions,
-              useAi: parsedUseAi
-            });
-            const formatted = this.formatResultForView(result, parsedInitialCapital);
-            doneResults.push({
-              rawResult: result,
-              period,
-              viewResult: formatted
-            });
+        await this.runWithConcurrency(
+          orderedPeriods,
+          effectiveConcurrency,
+          async (period: string) => {
+            try {
+              setPeriodState(period, 'running', `Processing ${period}`);
+              const result = await this.runBacktest({
+                exchange,
+                symbol,
+                period: period as Period,
+                hours: parsedHours,
+                strategy: strategy as StrategyName,
+                initialCapital: parsedInitialCapital,
+                options: parsedOptions,
+                useAi: parsedUseAi
+              });
+              const formatted = this.formatResultForView(result, parsedInitialCapital);
+              doneResults.push({
+                rawResult: result,
+                period,
+                viewResult: formatted
+              });
 
-            setPeriodSummary(period, this.buildMultiSummaryForRealtime(period, formatted));
-            setPeriodDetail(period, formatted);
-            setPeriodState(period, 'done', `${period} completed`);
-            await new Promise<void>(resolve => setImmediate(resolve));
+              setPeriodSummary(period, this.buildMultiSummaryForRealtime(period, formatted));
+              setPeriodDetail(period, formatted);
+              setPeriodState(period, 'done', `${period} completed`);
+              await new Promise<void>(resolve => setImmediate(resolve));
 
-            return {
-              status: 'done' as const,
-              rawResult: result,
-              period,
-              ...formatted
-            };
-          } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            setPeriodFailure(period, errorMessage);
-            setPeriodState(period, 'failed', `${period} failed`);
-            await new Promise<void>(resolve => setImmediate(resolve));
-            return {
-              status: 'failed' as const,
-              period,
-              error: errorMessage
-            };
+              return {
+                status: 'done' as const,
+                rawResult: result,
+                period,
+                ...formatted
+              };
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+              setPeriodFailure(period, errorMessage);
+              setPeriodState(period, 'failed', `${period} failed`);
+              await new Promise<void>(resolve => setImmediate(resolve));
+              return {
+                status: 'failed' as const,
+                period,
+                error: errorMessage
+              };
+            }
+          },
+          completedCount => {
+            const progress = 5 + Math.floor((completedCount / orderedPeriods.length) * 85);
+            setProgress('running', progress, `Processed ${completedCount}/${orderedPeriods.length} timeframe(s)`);
           }
-        },
-        completedCount => {
-          const progress = 5 + Math.floor((completedCount / orderedPeriods.length) * 85);
-          setProgress('running', progress, `Processed ${completedCount}/${orderedPeriods.length} timeframe(s)`);
-        }
-      );
+        );
 
-      setProgress('saving', 92, 'Saving qualified results');
-      await this.saveMultiBacktestIfQualified(doneResults, {
-        runGroupId,
-        strategyName: strategy,
-        hours: parsedHours,
-        initialCapital: parsedInitialCapital,
-        useAi: parsedUseAi,
-        saveHighWinrate: parsedSaveHighWinrate
-      });
-
-      console.log(
-        `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${orderedPeriods.join(',')} concurrency=${effectiveConcurrency} total_ms=${Date.now() - multiStartedAt}`
-      );
-
-      return {
-        resultType: 'multi',
-        viewData: {
+        setProgress('saving', 92, 'Saving qualified results');
+        await this.saveMultiBacktestIfQualified(doneResults, {
+          runGroupId,
           strategyName: strategy,
-          exchange,
-          symbol,
-          displaySymbol: buildTradingViewSymbol(exchange, symbol),
-          results: doneResults.map(item => item.viewResult)
-        }
-      };
-    });
+          hours: parsedHours,
+          initialCapital: parsedInitialCapital,
+          useAi: parsedUseAi,
+          saveHighWinrate: parsedSaveHighWinrate
+        });
+
+        console.log(
+          `[Backtest][Multi] strategy=${strategy} pair=${exchange}:${symbol} periods=${orderedPeriods.join(',')} concurrency=${effectiveConcurrency} total_ms=${Date.now() - multiStartedAt}`
+        );
+
+        return {
+          resultType: 'multi',
+          viewData: {
+            strategyName: strategy,
+            exchange,
+            symbol,
+            displaySymbol: buildTradingViewSymbol(exchange, symbol),
+            results: doneResults.map(item => item.viewResult)
+          }
+        };
+      }
+    );
   }
 
   private buildMultiSummaryForRealtime(period: string, formattedResult: ReturnType<BacktestController['formatResultForView']>) {
@@ -839,13 +873,11 @@ export class BacktestController extends BaseController {
   }
 
   private orderPeriodsForExecution(periods: string[]): string[] {
-    return periods
-      .slice()
-      .sort((a, b) => {
-        const aMinutes = convertPeriodToMinute(a as Period);
-        const bMinutes = convertPeriodToMinute(b as Period);
-        return bMinutes - aMinutes;
-      });
+    return periods.slice().sort((a, b) => {
+      const aMinutes = convertPeriodToMinute(a as Period);
+      const bMinutes = convertPeriodToMinute(b as Period);
+      return bMinutes - aMinutes;
+    });
   }
 
   private async saveSingleBacktestIfQualified(

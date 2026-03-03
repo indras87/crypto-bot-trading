@@ -99,17 +99,30 @@
         <div class="bg-white border border-gray-200 rounded">
             <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                 <span class="font-medium">Results</span>
-                <span class="text-xs text-gray-500">Total: <%= total %> runs</span>
+                <div class="flex items-center gap-3">
+                    <span class="text-xs text-gray-500">Total: <%= total %> runs</span>
+                    <button
+                        type="button"
+                        id="delete-selected-btn"
+                        class="px-3 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed hidden"
+                    >
+                        Delete Selected
+                    </button>
+                </div>
             </div>
 
-            <div class="overflow-x-auto">
-                <table class="backtest-table w-full border-collapse text-[13px]">
-                    <thead>
-                        <tr>
-                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
-                                <a href="<%= sortLink('created_at') %>" class="text-blue-600 hover:underline">Created</a>
-                            </th>
-                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Strategy</th>
+            <form method="POST" action="/backtest/delete-multiple?<%= buildQuery({}) %>" id="delete-form">
+                <div class="overflow-x-auto">
+                    <table class="backtest-table w-full border-collapse text-[13px]">
+                        <thead>
+                            <tr>
+                                <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 w-10">
+                                    <input type="checkbox" id="select-all" class="cursor-pointer">
+                                </th>
+                                <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2 whitespace-nowrap">
+                                    <a href="<%= sortLink('created_at') %>" class="text-blue-600 hover:underline">Created</a>
+                                </th>
+                                <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Strategy</th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Pair</th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Period</th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Type</th>
@@ -144,19 +157,22 @@
                                 <a href="<%= sortLink('max_drawdown') %>" class="text-blue-600 hover:underline">Max DD</a>
                             </th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Hours</th>
-                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Options</th>
+                            <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Options <button type="button" id="toggle-options" class="ml-1 text-xs text-blue-600 hover:underline">Expand</button></th>
                             <th class="border border-gray-200 bg-gray-50 font-semibold px-2 py-2">Group</th>
                         </tr>
                     </thead>
                     <tbody>
                         <% if (historyRows.length === 0) { %>
                             <tr>
-                                <td colspan="20" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
+                                <td colspan="21" class="border border-gray-200 px-4 py-8 text-center text-gray-500">No backtest history found</td>
                             </tr>
                         <% } %>
 
                         <% historyRows.forEach(function (row) { %>
                             <tr class="hover:bg-gray-100">
+                                <td class="border border-gray-200 px-2 py-1.5 text-center">
+                                    <input type="checkbox" name="ids" value="<%= row.id %>" class="row-checkbox cursor-pointer">
+                                </td>
                                 <td class="border border-gray-200 px-2 py-1.5 whitespace-nowrap"><%= formatDate(row.created_at, 'yy-m-d H:i:s') %></td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.strategy %></td>
                                 <td class="border border-gray-200 px-2 py-1.5"><%= row.exchange %>: <%= row.displaySymbol %></td>
@@ -180,16 +196,17 @@
                                 <td class="border border-gray-200 px-2 py-1.5 text-red-600"><%= row.max_drawdown.toFixed(2) %> %</td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-center"><%= row.hours %></td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-center">
-                                    <button
-                                        type="button"
-                                        class="show-strategy-options-btn px-2 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100 cursor-pointer"
-                                        data-strategy="<%= row.strategy %>"
-                                        data-pair="<%= row.exchange %>:<%= row.displaySymbol %>"
-                                        data-period="<%= row.period %>"
-                                        data-options="<%= encodeURIComponent(row.strategy_options_json || '{}') %>"
-                                    >
-                                        View JSON
-                                    </button>
+                                    <%
+                                    var optionsJson = '{}';
+                                    try {
+                                        if (row.strategy_options_json) {
+                                            optionsJson = JSON.stringify(JSON.parse(row.strategy_options_json), null, 2);
+                                        }
+                                    } catch (e) {
+                                        optionsJson = row.strategy_options_json || '{}';
+                                    }
+                                    %>
+                                    <pre class="options-cell text-[10px] text-left bg-gray-50 border border-gray-200 rounded p-1 whitespace-pre-wrap break-all" data-options="<%= optionsJson.replace(/</g, '&lt;').replace(/>/g, '&gt;') %>">{...}</pre>
                                 </td>
                                 <td class="border border-gray-200 px-2 py-1.5 text-xs text-gray-500" title="<%= row.run_group_id %>"><%= row.run_group_id.substring(0, 8) %></td>
                             </tr>
@@ -209,102 +226,78 @@
                     <% } %>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<div id="strategy-options-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
-    <div class="bg-white w-full max-w-3xl rounded border border-gray-200 shadow-lg">
-        <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
-            <div>
-                <div class="font-semibold">Strategy Options (JSON)</div>
-                <div id="strategy-options-meta" class="text-xs text-gray-500"></div>
-            </div>
-            <button id="strategy-options-close-top" type="button" class="px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer">Close</button>
-        </div>
-        <div class="p-4">
-            <pre id="strategy-options-content" class="bg-gray-50 border border-gray-200 rounded p-3 text-xs overflow-auto max-h-[60vh] whitespace-pre-wrap break-words"></pre>
-        </div>
-        <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
-            <button id="strategy-options-copy" type="button" class="px-3 py-1.5 border border-gray-300 rounded hover:bg-gray-100 cursor-pointer">Copy JSON</button>
-            <button id="strategy-options-close-bottom" type="button" class="px-3 py-1.5 bg-gray-800 text-white rounded hover:bg-gray-900 cursor-pointer">Close</button>
+            </form>
         </div>
     </div>
 </div>
 
 <script>
 (function() {
-    const modal = document.getElementById('strategy-options-modal');
-    const contentEl = document.getElementById('strategy-options-content');
-    const metaEl = document.getElementById('strategy-options-meta');
-    const copyBtn = document.getElementById('strategy-options-copy');
-    const closeTopBtn = document.getElementById('strategy-options-close-top');
-    const closeBottomBtn = document.getElementById('strategy-options-close-bottom');
-    let currentJsonText = '{}';
+    // Options expand/collapse functionality
+    var toggleOptionsBtn = document.getElementById('toggle-options');
+    var optionsExpanded = false;
 
-    function openModal(meta, jsonText) {
-        metaEl.textContent = meta;
-        contentEl.textContent = jsonText;
-        currentJsonText = jsonText;
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
+    if (toggleOptionsBtn) {
+        toggleOptionsBtn.addEventListener('click', function() {
+            optionsExpanded = !optionsExpanded;
+            toggleOptionsBtn.textContent = optionsExpanded ? 'Collapse' : 'Expand';
+
+            document.querySelectorAll('.options-cell').forEach(function(cell) {
+                if (optionsExpanded) {
+                    cell.textContent = cell.dataset.options || '{}';
+                } else {
+                    cell.textContent = '{...}';
+                }
+            });
+        });
     }
 
-    function closeModal() {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
+    // Bulk delete functionality
+    var selectAllCheckbox = document.getElementById('select-all');
+    var deleteBtn = document.getElementById('delete-selected-btn');
+    var deleteForm = document.getElementById('delete-form');
+    var rowCheckboxes = document.querySelectorAll('.row-checkbox');
 
-    function normalizeJson(raw) {
-        if (!raw || !raw.trim()) return '{}';
-        try {
-            return JSON.stringify(JSON.parse(raw), null, 2);
-        } catch (_err) {
-            return raw;
+    function updateDeleteButton() {
+        var checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        if (checkedBoxes.length > 0) {
+            deleteBtn.classList.remove('hidden');
+            deleteBtn.textContent = 'Delete Selected (' + checkedBoxes.length + ')';
+        } else {
+            deleteBtn.classList.add('hidden');
         }
     }
 
-    document.querySelectorAll('.show-strategy-options-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            const strategy = this.dataset.strategy || '-';
-            const pair = this.dataset.pair || '-';
-            const period = this.dataset.period || '-';
-            const encoded = this.dataset.options || '%7B%7D';
-            let decoded = '{}';
-            try {
-                decoded = decodeURIComponent(encoded);
-            } catch (_err) {}
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            rowCheckboxes.forEach(function(checkbox) {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateDeleteButton();
+        });
+    }
 
-            const meta = strategy + ' | ' + pair + ' | ' + period;
-            openModal(meta, normalizeJson(decoded));
+    rowCheckboxes.forEach(function(checkbox) {
+        checkbox.addEventListener('change', function() {
+            var allChecked = Array.from(rowCheckboxes).every(function(cb) { return cb.checked; });
+            var someChecked = Array.from(rowCheckboxes).some(function(cb) { return cb.checked; });
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allChecked;
+                selectAllCheckbox.indeterminate = someChecked && !allChecked;
+            }
+            updateDeleteButton();
         });
     });
 
-    closeTopBtn.addEventListener('click', closeModal);
-    closeBottomBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', function(event) {
-        if (event.target === modal) closeModal();
-    });
-
-    document.addEventListener('keydown', function(event) {
-        if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
-            closeModal();
-        }
-    });
-
-    copyBtn.addEventListener('click', async function() {
-        try {
-            await navigator.clipboard.writeText(currentJsonText);
-            copyBtn.textContent = 'Copied';
-            setTimeout(function() {
-                copyBtn.textContent = 'Copy JSON';
-            }, 1200);
-        } catch (_err) {
-            copyBtn.textContent = 'Copy failed';
-            setTimeout(function() {
-                copyBtn.textContent = 'Copy JSON';
-            }, 1200);
-        }
-    });
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', function() {
+            var checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+            if (checkedBoxes.length > 0) {
+                if (confirm('Delete ' + checkedBoxes.length + ' selected backtest run(s)?')) {
+                    deleteForm.submit();
+                }
+            }
+        });
+    }
 })();
 </script>

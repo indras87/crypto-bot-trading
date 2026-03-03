@@ -78,6 +78,7 @@ import { ParabolicSarAi } from '../strategy/strategies/parabolic_sar_ai';
 import { SmcRsiDivergence } from '../strategy/strategies/smc_rsi_divergence/smc_rsi_divergence';
 import { SmcSRZones } from '../strategy/strategies/smc_sr_zones';
 import { TaSniper } from '../strategy/strategies/ta_sniper';
+import { BountySurvivalV1 } from '../strategy/strategies/bounty_survival_v1';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -691,7 +692,8 @@ const services: Services = {
       ParabolicSarAi,
       SmcRsiDivergence,
       SmcSRZones,
-      TaSniper
+      TaSniper,
+      BountySurvivalV1
     ]));
   },
 

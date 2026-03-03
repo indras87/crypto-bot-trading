@@ -100,6 +100,24 @@ export class BacktestRunRepository {
     }
   }
 
+  deleteByIds(ids: number[]): void {
+    if (ids.length === 0) {
+      return;
+    }
+
+    const placeholders = ids.map((_, i) => `$id${i}`).join(', ');
+    const stmt = this.db.prepare(`
+      DELETE FROM backtest_runs WHERE id IN (${placeholders})
+    `);
+
+    const params: Record<string, number> = {};
+    ids.forEach((id, i) => {
+      params[`id${i}`] = id;
+    });
+
+    stmt.run(params);
+  }
+
   async findWithFilters(params: BacktestRunQueryParams): Promise<BacktestRunRecord[]> {
     const { whereSql, bindParams } = this.buildWhereClause(params);
     const sortColumn = SORT_COLUMNS[params.sortBy || 'roi'] || SORT_COLUMNS.roi;
