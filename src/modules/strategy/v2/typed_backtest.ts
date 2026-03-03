@@ -282,7 +282,12 @@ export class StrategyExecutor {
       return undefined;
     }
 
-    const strategy = new StrategyClass(options);
+    const strategy = new StrategyClass({
+      ...options,
+      pair_symbol: symbol,
+      pair_exchange: exchange,
+      timeframe: period
+    });
 
     // Live trading re-uses execute but without the AI loop inside execute,
     // because we handle AI explicitly below for the *latest* signal only.
