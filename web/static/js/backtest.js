@@ -28,7 +28,15 @@ function initializeBacktestCharts(rootElement) {
   });
 
   function initChart(chart, chartIndex) {
-    const candles = JSON.parse(chart.dataset.candles || '[]');
+    let candles = [];
+    try {
+      candles = JSON.parse(chart.dataset.candles || '[]');
+    } catch (error) {
+      const chartTitle = chart.dataset.title || 'Untitled chart';
+      console.error('[backtest] Failed to parse chart candles for:', chartTitle, error);
+      chart.innerHTML = '<p class="text-red-600 text-sm py-4 text-center">Invalid chart data</p>';
+      return;
+    }
 
     if (candles.length === 0) return;
 

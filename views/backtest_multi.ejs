@@ -355,7 +355,7 @@ function renderRealtimeLayout() {
             chartsHtml.push(
                 '<div class="flex-1 min-w-[480px] border border-gray-200 rounded p-3">' +
                     '<div class="font-semibold text-center pb-2 border-b border-gray-200 mb-2">' + escapeHtml(period) + '</div>' +
-                    '<div class="chart" data-candles="' + escapeAttr(String(result.candles).replace(/"/g, '&quot;')) + '" data-title="' +
+                    '<div class="chart" data-candles="' + escapeAttr(String(result.candles)) + '" data-title="' +
                         escapeAttr(result.exchange + ' - ' + result.symbol + ' - ' + result.strategyName + ' - ' + period) + '"></div>' +
                 '</div>'
             );

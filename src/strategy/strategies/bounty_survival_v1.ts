@@ -312,19 +312,59 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
       pair_symbol: '',
       pair_exchange: '',
       pair_overrides: {
-        'BNB/USDT:USDT': {
-          adx_min: 22,
+        'BNB/USDT:USDT@5m': {
+          adx_min: 20,
+          atr_ratio_min: 0.0017,
+          atr_ratio_max: 0.0105,
           min_signal_score: 5,
-          trend_buffer_pct: 0.0018,
+          trend_buffer_pct: 0.0014,
           require_breakout: false,
+          cooldown_candles: 8,
+          max_trades_per_day: 4,
+          allow_long: true,
+          allow_short: false
+        },
+        'XRP/USDT:USDT@5m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'XRP/USDT:USDT@15m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'ETH/USDT:USDT@5m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'ETH/USDT:USDT@15m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'BNB/USDT:USDT@15m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'SOL/USDT:USDT@5m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'SOL/USDT:USDT@15m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'ADA/USDT:USDT@5m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'ADA/USDT:USDT@15m': {
+          allow_long: false,
+          allow_short: false
+        },
+        'BNB/USDT:USDT': {
           allow_long: true,
           allow_short: false
         },
         'XRP/USDT:USDT': {
-          adx_min: 24,
-          min_signal_score: 6,
-          trend_buffer_pct: 0.0022,
-          require_breakout: true,
           allow_long: true,
           allow_short: false
         },
@@ -346,13 +386,17 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
 
   private getEffectiveOptions(): BountySurvivalV1Options {
     const symbolRaw = this.options.pair_symbol || '';
+    const timeframeRaw = (this.options.timeframe || '').toLowerCase();
     const pairOverrides = this.options.pair_overrides || {};
     const normalizedSymbol = this.normalizePair(symbolRaw);
     const compactSymbol = this.normalizePair(symbolRaw.split(':')[0]?.replace('/', '') || '');
 
     for (const [key, override] of Object.entries(pairOverrides)) {
-      const normalizedKey = this.normalizePair(key);
-      if (normalizedKey && (normalizedKey === normalizedSymbol || normalizedKey === compactSymbol)) {
+      const parsed = this.parseOverrideKey(key);
+      const normalizedKey = this.normalizePair(parsed.pairKey);
+      const pairMatched = normalizedKey && (normalizedKey === normalizedSymbol || normalizedKey === compactSymbol);
+      const timeframeMatched = !parsed.timeframe || parsed.timeframe.toLowerCase() === timeframeRaw;
+      if (pairMatched && timeframeMatched) {
         return {
           ...this.options,
           ...override
@@ -365,6 +409,14 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
 
   private normalizePair(value: string): string {
     return value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+  private parseOverrideKey(key: string): { pairKey: string; timeframe?: string } {
+    const [pairKey, timeframe] = key.split('@');
+    return {
+      pairKey,
+      timeframe: timeframe?.trim()
+    };
   }
 
   private rollDailyCounter(candleTime: number): void {
