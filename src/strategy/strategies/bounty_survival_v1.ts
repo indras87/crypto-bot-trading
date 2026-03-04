@@ -322,7 +322,9 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
           cooldown_candles: 8,
           max_trades_per_day: 4,
           allow_long: true,
-          allow_short: false
+          allow_short: true,
+          rsi_short_min: 34,
+          rsi_short_max: 54
         },
         'XRP/USDT:USDT@5m': {
           allow_long: false,
@@ -362,7 +364,7 @@ export class BountySurvivalV1 extends StrategyBase<BountySurvivalV1Indicators, B
         },
         'BNB/USDT:USDT': {
           allow_long: true,
-          allow_short: false
+          allow_short: true
         },
         'XRP/USDT:USDT': {
           allow_long: true,
