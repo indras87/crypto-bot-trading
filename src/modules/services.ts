@@ -278,6 +278,13 @@ const services: Services = {
     myDb.exec('CREATE INDEX IF NOT EXISTS backtest_runs_profit_factor_idx ON backtest_runs (profit_factor);');
     myDb.exec('CREATE INDEX IF NOT EXISTS backtest_runs_calmar_idx ON backtest_runs (calmar_ratio);');
 
+    // Backward-compatible migration for existing DB files that predate signals.interval.
+    const signalTableInfo = myDb.prepare('PRAGMA table_info(signals)').all() as Array<{ name: string }>;
+    const signalColumns = new Set(signalTableInfo.map(col => col.name));
+    if (!signalColumns.has('interval')) {
+      myDb.exec('ALTER TABLE signals ADD COLUMN interval VARCHAR(20) NULL;');
+    }
+
     return (db = myDb);
   },
 
