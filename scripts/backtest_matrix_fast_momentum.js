@@ -21,6 +21,7 @@ function parseArgs(argv) {
     pollMs: 1500,
     timeoutMs: 15 * 60 * 1000,
     presetsDir: DEFAULT_PRESETS_DIR,
+    presets: [],
     outDir: DEFAULT_OUT_DIR
   };
 
@@ -66,6 +67,9 @@ function parseArgs(argv) {
       case '--presets-dir':
         args.presetsDir = path.resolve(process.cwd(), value);
         break;
+      case '--presets':
+        args.presets = value.split(',').map(v => v.trim()).filter(Boolean);
+        break;
       case '--out-dir':
         args.outDir = path.resolve(process.cwd(), value);
         break;
@@ -88,14 +92,16 @@ function toPercent(value) {
   return value.toFixed(4);
 }
 
-function readPresets(presetsDir) {
+function readPresets(presetsDir, selectedPresetNames = []) {
   if (!fs.existsSync(presetsDir)) {
     throw new Error(`Presets directory not found: ${presetsDir}`);
   }
 
+  const selectedSet = new Set(selectedPresetNames);
   const files = fs
     .readdirSync(presetsDir)
     .filter(file => file.endsWith('.json'))
+    .filter(file => selectedSet.size === 0 || selectedSet.has(path.basename(file, '.json')))
     .sort((a, b) => a.localeCompare(b));
 
   if (files.length === 0) {
@@ -228,6 +234,7 @@ Options:
   --initial-capital <num>   Initial capital (default: 1000)
   --use-ai <0|1|true|false> Enable AI in backtest (default: false)
   --presets-dir <path>      Preset JSON directory
+  --presets <csv>           Example: tp15_sl7,15m_baseline
   --out-dir <path>          Output directory for CSV/JSON
   --poll-ms <number>        Poll interval ms (default: 1500)
   --timeout-ms <number>     Per-job timeout ms (default: 900000)
@@ -241,7 +248,7 @@ Environment:
   }
 
   const authHeader = getAuthHeader();
-  const presets = readPresets(args.presetsDir);
+  const presets = readPresets(args.presetsDir, args.presets);
 
   fs.mkdirSync(args.outDir, { recursive: true });
 

@@ -79,6 +79,7 @@ Template kolom CSV ada di:
 - `--periods` daftar timeframe dipisah koma
 - `--hours` panjang data backtest
 - `--presets-dir` lokasi folder preset JSON
+- `--presets` pilih preset tertentu (csv), contoh: `tp15_sl7`
 - `--poll-ms` interval polling status job
 - `--timeout-ms` timeout per job
 
@@ -92,6 +93,59 @@ Urutkan hasil berdasarkan:
 4. `trades` minimal 20 untuk reliabilitas awal
 
 Lalu validasi ulang pemenang preset di 2160 jam (90 hari) untuk cek stabilitas.
+
+## 7) Backtest Pair Lain (TP 1.5%, SL 7%)
+
+Preset yang dipakai:
+
+- `docs/backtest-presets/fast_momentum_rsi_macd/tp15_sl7.json`
+
+Contoh run (SOL, BNB, ARC, VVV, SAHARA pada 5m/15m/30m, 720 jam):
+
+```bash
+npm run backtest:matrix:fast-momentum -- \
+  --pairs binance.SOLUSDT.P,binance.BNBUSDT.P,binance.ARCUSDT.P,binance.VVVUSDT.P,binance.SAHARAUSDT.P \
+  --periods 5m,15m,30m \
+  --hours 720 \
+  --presets tp15_sl7
+```
+
+Shortlist hasil (WR >= 60 dan ROI > 0):
+
+```bash
+npm run backtest:shortlist:fast-momentum -- \
+  --input docs/backtest-results/<hasil_json>.json \
+  --min-winrate 60 \
+  --min-roi 0 \
+  --min-trades 1
+```
+
+Shortlist dengan batas DD (contoh DD <= 18):
+
+```bash
+npm run backtest:shortlist:fast-momentum -- \
+  --input docs/backtest-results/<hasil_json>.json \
+  --min-winrate 60 \
+  --min-roi 0 \
+  --min-trades 1 \
+  --max-dd 18
+```
+
+## 8) Retry Rekomendasi (DD Reduce V1)
+
+Preset retry:
+
+- `docs/backtest-presets/fast_momentum_rsi_macd/dd_reduce_v1.json`
+
+Run 9 job (SOL, BNB, SAHARA x 5m/15m/30m) untuk 2160 jam:
+
+```bash
+npm run backtest:matrix:fast-momentum -- \
+  --pairs binance.SOLUSDT.P,binance.BNBUSDT.P,binance.SAHARAUSDT.P \
+  --periods 5m,15m,30m \
+  --hours 2160 \
+  --presets dd_reduce_v1
+```
 
 ## 6) Jalankan 2 mode rekomendasi
 

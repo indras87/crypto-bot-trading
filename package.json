@@ -74,6 +74,7 @@
     "build:watch": "node esbuild.config.mjs --watch",
     "backtest:matrix:fast-momentum": "node scripts/backtest_matrix_fast_momentum.js",
     "backtest:mode:fast-momentum": "node scripts/backtest_mode_fast_momentum.js",
+    "backtest:shortlist:fast-momentum": "node scripts/backtest_shortlist_fast_momentum.js",
     "setup": "pm2 deploy ecosystem.config.js production setup",
     "deploy": "pm2 deploy ecosystem.config.js production"
   },
