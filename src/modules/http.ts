@@ -134,6 +134,7 @@ export class Http {
       next();
     });
 
+    app.use(express.json({ limit: '12mb' }));
     app.use(express.urlencoded({ limit: '12mb', extended: true, parameterLimit: 50000 }));
     app.use(cookieParser());
     app.use(

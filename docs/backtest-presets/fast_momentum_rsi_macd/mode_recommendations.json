@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "source_result": "docs/backtest-results/fast_momentum_matrix_20260305_082751.json",
+  "modes": {
+    "high_winrate_sl9": {
+      "description": "Mode fokus winrate tinggi dengan preset SL 9% berbasis hasil matrix terakhir.",
+      "jobs": [
+        {
+          "pair": "binance.XRPUSDT.P",
+          "period": "5m",
+          "preset": "15m_fast_reentry"
+        },
+        {
+          "pair": "binance.SOLUSDT.P",
+          "period": "30m",
+          "preset": "dd_cap_12_balanced"
+        },
+        {
+          "pair": "binance.ETHUSDT.P",
+          "period": "5m",
+          "preset": "dd_cap_12_balanced"
+        },
+        {
+          "pair": "binance.BNBUSDT.P",
+          "period": "5m",
+          "preset": "15m_baseline"
+        },
+        {
+          "pair": "binance.ADAUSDT.P",
+          "period": "30m",
+          "preset": "dd_cap_10_ultra_strict"
+        }
+      ]
+    },
+    "tight_dd_small_sl": {
+      "description": "Mode fokus drawdown ketat dengan emergency SL kecil (3-4%) per pair/timeframe.",
+      "jobs": [
+        {
+          "pair": "binance.XRPUSDT.P",
+          "period": "5m",
+          "preset": "dd_small_sl_balanced"
+        },
+        {
+          "pair": "binance.SOLUSDT.P",
+          "period": "30m",
+          "preset": "dd_small_sl_strict"
+        },
+        {
+          "pair": "binance.ETHUSDT.P",
+          "period": "5m",
+          "preset": "dd_small_sl_strict"
+        },
+        {
+          "pair": "binance.BNBUSDT.P",
+          "period": "15m",
+          "preset": "dd_small_sl_strict"
+        },
+        {
+          "pair": "binance.ADAUSDT.P",
+          "period": "30m",
+          "preset": "dd_small_sl_balanced"
+        }
+      ]
+    }
+  }
+}

@@ -686,17 +686,19 @@ export class BacktestController extends BaseController {
   }
 
   private async createSingleBacktestJob(body: any) {
+    if (!body || typeof body !== 'object') {
+      throw new BadRequestError('Invalid request body');
+    }
+
     const { pair, candle_period, hours, strategy, initial_capital, options, use_ai, save_high_winrate } = body;
+    if (!pair || !candle_period || !strategy || hours === undefined || hours === null || hours === '') {
+      throw new BadRequestError('Missing required fields: pair, candle_period, hours, strategy');
+    }
     const parsedHours = parseInt(hours, 10);
     const parsedInitialCapital = parseFloat(initial_capital) || 1000;
     const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
     const parsedSaveHighWinrate = save_high_winrate === 'on' || save_high_winrate === 'true' || save_high_winrate === '1';
-    let parsedOptions: Record<string, unknown> | undefined;
-    try {
-      parsedOptions = options ? JSON.parse(options) : undefined;
-    } catch (_error) {
-      throw new BadRequestError('Invalid strategy options JSON');
-    }
+    const parsedOptions = this.parseStrategyOptions(options);
     const [exchange, symbol] = String(pair || '').split('.');
 
     if (!exchange || !symbol) {
@@ -733,19 +735,21 @@ export class BacktestController extends BaseController {
   }
 
   private async createMultiBacktestJob(body: any) {
+    if (!body || typeof body !== 'object') {
+      throw new BadRequestError('Invalid request body');
+    }
+
     const { pair, candle_periods, hours, strategy, initial_capital, options, use_ai, multi_backtest_concurrency, save_high_winrate } = body;
+    if (!pair || !candle_periods || !strategy || hours === undefined || hours === null || hours === '') {
+      throw new BadRequestError('Missing required fields: pair, candle_periods, hours, strategy');
+    }
     const parsedHours = parseInt(hours, 10);
     const parsedInitialCapital = parseFloat(initial_capital) || 1000;
     const parsedUseAi = use_ai === 'on' || use_ai === 'true' || use_ai === '1';
     const parsedSaveHighWinrate = save_high_winrate === 'on' || save_high_winrate === 'true' || save_high_winrate === '1';
     const parsedConcurrency = Math.max(1, Math.min(parseInt(multi_backtest_concurrency, 10) || 2, 5));
     const effectiveConcurrency = parsedHours > 168 ? 1 : parsedConcurrency;
-    let parsedOptions: Record<string, unknown> | undefined;
-    try {
-      parsedOptions = options ? JSON.parse(options) : undefined;
-    } catch (_error) {
-      throw new BadRequestError('Invalid strategy options JSON');
-    }
+    const parsedOptions = this.parseStrategyOptions(options);
     const [exchange, symbol] = String(pair || '').split('.');
     const periods = (Array.isArray(candle_periods) ? candle_periods : [candle_periods]).filter(Boolean);
 
@@ -936,5 +940,25 @@ export class BacktestController extends BaseController {
     if (skippedCount > 0) {
       console.log(`Backtest not saved: ${skippedCount} result(s) with win rate below ${BacktestController.MIN_WIN_RATE}% threshold`);
     }
+  }
+
+  private parseStrategyOptions(options: unknown): Record<string, unknown> | undefined {
+    if (options === undefined || options === null || options === '') {
+      return undefined;
+    }
+
+    if (typeof options === 'string') {
+      try {
+        return JSON.parse(options) as Record<string, unknown>;
+      } catch (_error) {
+        throw new BadRequestError('Invalid strategy options JSON');
+      }
+    }
+
+    if (typeof options === 'object') {
+      return options as Record<string, unknown>;
+    }
+
+    throw new BadRequestError('Invalid strategy options JSON');
   }
 }
