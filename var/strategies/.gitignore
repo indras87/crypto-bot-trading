@@ -1,3 +1,7 @@
 *
 !.gitignore
 !README.md
+!playground/
+!playground/playground.ts
+!fast_momentum_rsi_macd/
+!fast_momentum_rsi_macd/fast_momentum_rsi_macd.ts
