@@ -9,7 +9,9 @@ bot.db
 bot.db-shm
 bot.db-wal
 dist
-var
+var/*
+!var/strategies/
+!var/strategies/**
 
 # TypeScript incremental cache
 *.tsbuildinfo
