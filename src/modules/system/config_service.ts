@@ -24,6 +24,7 @@ export interface Profile {
   apiKey?: string;
   secret?: string;
   bots?: Bot[];
+  botsV2?: BotV2[];
 }
 
 export interface Bot {
@@ -36,6 +37,24 @@ export interface Bot {
   mode: 'watch' | 'trade';
   status: 'stopped' | 'running';
   useAiValidator?: boolean;
+  options?: Record<string, any>;
+}
+
+export interface BotV2 {
+  id: string;
+  name: string;
+  strategy: string;
+  pair: string;
+  interval: string;
+  capital: number;
+  status: 'stopped' | 'running';
+  useAiValidator?: boolean;
+  executionMode?: 'paper' | 'live';
+  adaptiveEnabled?: boolean;
+  adaptiveUpdateEveryTrades?: number;
+  maxDrawdownPct?: number;
+  futuresOnlyLongShort?: boolean;
+  aiMinConfidence?: number;
   options?: Record<string, any>;
 }
 

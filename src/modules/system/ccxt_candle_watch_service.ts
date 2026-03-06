@@ -55,6 +55,10 @@ export class CcxtCandleWatchService {
         const key = `${profile.exchange}:${bot.pair}`;
         pairSet.set(key, { exchange: profile.exchange, symbol: bot.pair });
       }
+      for (const bot of profile.botsV2 || []) {
+        const key = `${profile.exchange}:${bot.pair}`;
+        pairSet.set(key, { exchange: profile.exchange, symbol: bot.pair });
+      }
     }
 
     return Array.from(pairSet.values());
@@ -77,6 +81,11 @@ export class CcxtCandleWatchService {
     for (const profile of this.profileService.getProfiles()) {
       if (profile.exchange !== exchange) continue;
       for (const bot of profile.bots || []) {
+        if (bot.pair === symbol && bot.interval === period) {
+          return true;
+        }
+      }
+      for (const bot of profile.botsV2 || []) {
         if (bot.pair === symbol && bot.interval === period) {
           return true;
         }
@@ -138,6 +147,9 @@ export class CcxtCandleWatchService {
 
     for (const profile of this.profileService.getProfiles()) {
       for (const bot of profile.bots || []) {
+        addSub(profile.exchange, bot.pair, bot.interval);
+      }
+      for (const bot of profile.botsV2 || []) {
         addSub(profile.exchange, bot.pair, bot.interval);
       }
     }

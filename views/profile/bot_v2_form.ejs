@@ -1,0 +1,151 @@
+<div class="p-3 md:p-4">
+    <div class="flex flex-col lg:flex-row gap-4 lg:gap-6 max-w-[1100px]">
+        <button id="sidebar-toggle" class="lg:hidden flex items-center justify-between px-4 py-2 bg-white border border-gray-200 rounded shadow-sm text-sm">
+            <span><i class="fas fa-bars mr-2"></i>Menu</span>
+        </button>
+
+        <div id="sidebar" class="hidden lg:block lg:w-52 shrink-0">
+            <%- include('../components/settings_sidebar', { activeSettingsPage }) %>
+        </div>
+
+        <div class="flex-1 min-w-0">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+                <h1 class="text-xl md:text-2xl font-semibold"><%= isEdit ? 'Edit Bot V2' : 'New Bot V2' %></h1>
+                <a href="/profiles/<%= profile.id %>" class="text-gray-500 hover:text-gray-700 text-sm whitespace-nowrap">
+                    <i class="fas fa-arrow-left mr-1"></i> <%= profile.name %>
+                </a>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded max-w-[700px]">
+                <form action="/profiles/<%= profile.id %>/bots-v2<%= isEdit ? '/' + bot.id : '' %>" method="POST" class="p-4 space-y-4">
+                    <div class="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded px-3 py-2">
+                        Bot V2 is isolated from legacy bot. It uses adaptive AI policy and futures-focused guardrails.
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                        <input type="text" name="name" required value="<%= bot ? bot.name : '' %>" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+                        <select id="strategy" name="strategy" required class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">Select a strategy...</option>
+                            <% strategies.forEach(function(s) { %>
+                            <option value="<%= s.name %>" data-options='<%= JSON.stringify(s.defaultOptions || {}) %>' <%= bot && bot.strategy === s.name ? 'selected' : '' %>><%= s.displayName %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Pair</label>
+                        <select id="pair" name="pair" class="w-full" data-slim-select data-slim-placeholder="Search pairs..." required>
+                            <option value="">Select a pair...</option>
+                            <% pairs.forEach(function(p) { %>
+                            <option value="<%= p %>" <%= bot && bot.pair === p ? 'selected' : '' %>><%= p %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Interval</label>
+                            <select name="interval" required class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <option value="1m" <%= bot && bot.interval === '1m' ? 'selected' : '' %>>1 minute</option>
+                                <option value="3m" <%= bot && bot.interval === '3m' ? 'selected' : '' %>>3 minutes</option>
+                                <option value="5m" <%= bot && bot.interval === '5m' ? 'selected' : '' %>>5 minutes</option>
+                                <option value="15m" <%= !bot || bot.interval === '15m' ? 'selected' : '' %>>15 minutes</option>
+                                <option value="30m" <%= bot && bot.interval === '30m' ? 'selected' : '' %>>30 minutes</option>
+                                <option value="1h" <%= bot && bot.interval === '1h' ? 'selected' : '' %>>1 hour</option>
+                                <option value="4h" <%= bot && bot.interval === '4h' ? 'selected' : '' %>>4 hours</option>
+                                <option value="1d" <%= bot && bot.interval === '1d' ? 'selected' : '' %>>1 day</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Capital (USDT)</label>
+                            <input type="number" name="capital" required min="1" step="0.01" value="<%= bot ? bot.capital : '' %>" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Execution Mode</label>
+                            <select name="executionMode" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                <option value="paper" <%= !bot || bot.executionMode !== 'live' ? 'selected' : '' %>>Paper</option>
+                                <option value="live" <%= bot && bot.executionMode === 'live' ? 'selected' : '' %>>Live</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Initial AI Min Confidence</label>
+                            <input type="number" min="0.5" max="0.95" step="0.01" name="aiMinConfidence" value="<%= bot ? (bot.aiMinConfidence ?? 0.7) : 0.7 %>" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Adaptive Update Every</label>
+                            <input type="number" min="5" name="adaptiveUpdateEveryTrades" value="<%= bot ? (bot.adaptiveUpdateEveryTrades ?? 20) : 20 %>" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Drawdown (%)</label>
+                            <input type="number" min="1" step="0.1" name="maxDrawdownPct" value="<%= bot ? (bot.maxDrawdownPct ?? 12) : 12 %>" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="checkbox" name="useAiValidator" <%= bot ? ((bot.useAiValidator ?? true) ? 'checked' : '') : 'checked' %> class="mr-2">
+                            <span class="text-sm">Enable AI Validator</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="adaptiveEnabled" <%= bot ? ((bot.adaptiveEnabled ?? true) ? 'checked' : '') : 'checked' %> class="mr-2">
+                            <span class="text-sm">Enable adaptive self-improvement</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="futuresOnlyLongShort" <%= bot ? ((bot.futuresOnlyLongShort ?? true) ? 'checked' : '') : 'checked' %> class="mr-2">
+                            <span class="text-sm">Futures-only long/short</span>
+                        </label>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Strategy Options (JSON)</label>
+                        <textarea name="options" id="form-options" rows="5" class="w-full px-3 py-2.5 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono text-sm"><%= bot && bot.options ? JSON.stringify(bot.options, null, 2) : '' %></textarea>
+                    </div>
+
+                    <% if (isEdit) { %>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Active</label>
+                        <label class="flex items-center">
+                            <input type="checkbox" name="status" <%= bot && bot.status === 'running' ? 'checked' : '' %> class="mr-2">
+                            <span class="text-sm">Bot V2 is running</span>
+                        </label>
+                    </div>
+                    <% } %>
+
+                    <div class="flex flex-col sm:flex-row justify-end gap-2 pt-4 border-t border-gray-200">
+                        <a href="/profiles/<%= profile.id %>" class="px-4 py-2.5 text-sm text-gray-600 hover:text-gray-800 text-center">Cancel</a>
+                        <button type="submit" class="px-4 py-2.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 cursor-pointer"><%= isEdit ? 'Update Bot V2' : 'Create Bot V2' %></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('sidebar-toggle')?.addEventListener('click', function() {
+    document.getElementById('sidebar').classList.toggle('hidden');
+});
+
+document.getElementById('strategy')?.addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const optionsEl = document.getElementById('form-options');
+
+    if (selectedOption && selectedOption.dataset.options) {
+        const defaultOptions = JSON.parse(selectedOption.dataset.options);
+        optionsEl.value = Object.keys(defaultOptions).length > 0 ? JSON.stringify(defaultOptions, null, 2) : '';
+    } else {
+        optionsEl.value = '';
+    }
+});
+</script>

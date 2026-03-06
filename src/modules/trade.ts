@@ -4,6 +4,7 @@ import os from 'os';
 import { Notify } from '../notify/notify';
 import { Logger, LogsRepository, TickerLogRepository } from './services';
 import { BotRunner } from '../strategy/bot_runner';
+import { BotRunnerV2 } from '../strategy/bot_runner_v2';
 
 export class Trade {
   constructor(
@@ -11,7 +12,8 @@ export class Trade {
     private logger: Logger,
     private logsRepository: LogsRepository,
     private tickerLogRepository: TickerLogRepository,
-    private botRunner: BotRunner
+    private botRunner: BotRunner,
+    private botRunnerV2: BotRunnerV2
   ) {}
 
   start(): void {
@@ -32,6 +34,7 @@ export class Trade {
 
     // Start BotRunner for strategy execution
     this.botRunner.start();
+    this.botRunnerV2.start();
 
     // Log cleanup cronjob
     setInterval(async () => {

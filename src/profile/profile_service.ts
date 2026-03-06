@@ -1,5 +1,5 @@
 import * as ccxt from 'ccxt';
-import { Profile, Balance, OrderParams, OrderResult, OrderInfo, MarketData, Bot, BotConfig, TradeInfo, ClosedPositionInfo } from './types';
+import { Profile, Balance, OrderParams, OrderResult, OrderInfo, MarketData, Bot, BotConfig, BotV2, BotV2Config, TradeInfo, ClosedPositionInfo } from './types';
 import { ConfigService } from '../modules/system/config_service';
 import { ExchangeInstanceService } from '../modules/system/exchange_instance_service';
 import { BinancePriceService } from '../utils/binance_price_service';
@@ -326,6 +326,106 @@ export class ProfileService {
 
     const bots = profiles[profileIndex].bots || [];
     profiles[profileIndex].bots = bots.filter(b => b.id !== botId);
+    this.configService.saveProfiles(profiles);
+  }
+
+  // ==================== Bot V2 Management ====================
+
+  getBotsV2(profileId: string): BotV2[] {
+    const profile = this.getProfile(profileId);
+    return profile?.botsV2 || [];
+  }
+
+  getBotV2(profileId: string, botId: string): BotV2 | undefined {
+    return this.getBotsV2(profileId).find(b => b.id === botId);
+  }
+
+  createBotV2(profileId: string, config: BotV2Config): BotV2 {
+    const profiles = this.getProfiles();
+    const profileIndex = profiles.findIndex(p => p.id === profileId);
+
+    if (profileIndex === -1) {
+      throw new Error(`Profile with id ${profileId} not found`);
+    }
+
+    const bot: BotV2 = {
+      id: 'botv2_' + this.generateId(),
+      name: config.name,
+      strategy: config.strategy,
+      pair: config.pair,
+      interval: config.interval,
+      capital: config.capital,
+      status: config.status || 'stopped',
+      useAiValidator: config.useAiValidator ?? true,
+      executionMode: config.executionMode || 'paper',
+      adaptiveEnabled: config.adaptiveEnabled ?? true,
+      adaptiveUpdateEveryTrades: config.adaptiveUpdateEveryTrades ?? 20,
+      maxDrawdownPct: config.maxDrawdownPct ?? 12,
+      futuresOnlyLongShort: config.futuresOnlyLongShort ?? true,
+      aiMinConfidence: config.aiMinConfidence ?? 0.7,
+      options: config.options
+    };
+
+    if (!profiles[profileIndex].botsV2) {
+      profiles[profileIndex].botsV2 = [];
+    }
+
+    profiles[profileIndex].botsV2!.push(bot);
+    this.configService.saveProfiles(profiles);
+
+    return bot;
+  }
+
+  updateBotV2(profileId: string, botId: string, updates: Partial<BotV2Config>): BotV2 {
+    const profiles = this.getProfiles();
+    const profileIndex = profiles.findIndex(p => p.id === profileId);
+
+    if (profileIndex === -1) {
+      throw new Error(`Profile with id ${profileId} not found`);
+    }
+
+    const bots = profiles[profileIndex].botsV2 || [];
+    const botIndex = bots.findIndex(b => b.id === botId);
+
+    if (botIndex === -1) {
+      throw new Error(`Bot V2 with id ${botId} not found`);
+    }
+
+    const existingBot = bots[botIndex];
+
+    const updatedBot: BotV2 = {
+      ...existingBot,
+      name: updates.name ?? existingBot.name,
+      strategy: updates.strategy ?? existingBot.strategy,
+      pair: updates.pair ?? existingBot.pair,
+      interval: updates.interval ?? existingBot.interval,
+      capital: updates.capital ?? existingBot.capital,
+      status: updates.status ?? existingBot.status,
+      useAiValidator: updates.useAiValidator ?? existingBot.useAiValidator,
+      executionMode: updates.executionMode ?? existingBot.executionMode,
+      adaptiveEnabled: updates.adaptiveEnabled ?? existingBot.adaptiveEnabled,
+      adaptiveUpdateEveryTrades: updates.adaptiveUpdateEveryTrades ?? existingBot.adaptiveUpdateEveryTrades,
+      maxDrawdownPct: updates.maxDrawdownPct ?? existingBot.maxDrawdownPct,
+      futuresOnlyLongShort: updates.futuresOnlyLongShort ?? existingBot.futuresOnlyLongShort,
+      aiMinConfidence: updates.aiMinConfidence ?? existingBot.aiMinConfidence,
+      options: updates.options !== undefined ? updates.options : existingBot.options
+    };
+
+    profiles[profileIndex].botsV2![botIndex] = updatedBot;
+    this.configService.saveProfiles(profiles);
+    return updatedBot;
+  }
+
+  deleteBotV2(profileId: string, botId: string): void {
+    const profiles = this.getProfiles();
+    const profileIndex = profiles.findIndex(p => p.id === profileId);
+
+    if (profileIndex === -1) {
+      throw new Error(`Profile with id ${profileId} not found`);
+    }
+
+    const bots = profiles[profileIndex].botsV2 || [];
+    profiles[profileIndex].botsV2 = bots.filter(b => b.id !== botId);
     this.configService.saveProfiles(profiles);
   }
 }

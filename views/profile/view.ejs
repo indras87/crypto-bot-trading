@@ -67,6 +67,9 @@
                 <button type="button" class="tab-btn px-3 md:px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="bots">
                     Bots
                 </button>
+                <button type="button" class="tab-btn px-3 md:px-4 py-2 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="bots-v2">
+                    Bot V2
+                </button>
             </nav>
         </div>
 
@@ -202,6 +205,69 @@
                         <p>No bots configured.</p>
                         <p class="text-sm mt-1">
                             <a href="/profiles/<%= profile.id %>/bots/new" class="text-blue-600 hover:underline">Add your first bot</a>
+                        </p>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+        <div id="tab-bots-v2" class="tab-content hidden">
+            <div class="bg-white border border-gray-200 rounded">
+                <div class="px-3 md:px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <span class="font-medium">Trading Bot V2</span>
+                    <a href="/profiles/<%= profile.id %>/bots-v2/new" class="text-blue-600 hover:text-blue-800 text-sm cursor-pointer px-2 py-1">
+                        <i class="fas fa-plus mr-1"></i> Add Bot V2
+                    </a>
+                </div>
+                <div class="overflow-x-auto">
+                    <% if (profile.botsV2 && profile.botsV2.length > 0) { %>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Name</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Strategy</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Pair</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Interval</th>
+                                <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600">Capital</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Execution</th>
+                                <th class="text-left py-3 px-3 md:px-4 font-medium text-gray-600">Status</th>
+                                <th class="text-right py-3 px-3 md:px-4 font-medium text-gray-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <% profile.botsV2.forEach(function(bot) { %>
+                            <tr class="hover:bg-gray-50">
+                                <td class="py-3 px-3 md:px-4 font-medium"><%= bot.name %></td>
+                                <td class="py-3 px-3 md:px-4 font-mono text-xs text-gray-600"><%= bot.strategy %></td>
+                                <td class="py-3 px-3 md:px-4 font-mono text-xs"><%= bot.pair %></td>
+                                <td class="py-3 px-3 md:px-4"><%= bot.interval %></td>
+                                <td class="py-3 px-3 md:px-4 text-right">$<%= bot.capital.toFixed(2) %></td>
+                                <td class="py-3 px-3 md:px-4">
+                                    <span class="px-2 py-1 rounded text-xs <%= (bot.executionMode || 'paper') === 'live' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800' %>">
+                                        <%= (bot.executionMode || 'paper').toUpperCase() %>
+                                    </span>
+                                </td>
+                                <td class="py-3 px-3 md:px-4">
+                                    <span class="px-2 py-1 rounded text-xs <%= bot.status === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600' %>">
+                                        <%= bot.status === 'running' ? 'Running' : 'Stopped' %>
+                                    </span>
+                                </td>
+                                <td class="py-3 px-3 md:px-4 text-right whitespace-nowrap">
+                                    <a href="/profiles/<%= profile.id %>/bots-v2/<%= bot.id %>/edit" class="text-blue-600 hover:text-blue-800 mr-2" title="Edit"><i class="fas fa-pen-to-square"></i></a>
+                                    <form action="/profiles/<%= profile.id %>/bots-v2/<%= bot.id %>/delete" method="POST" class="inline" onsubmit="return confirm('Delete this Bot V2?')">
+                                        <button type="submit" class="text-red-600 hover:text-red-800 cursor-pointer" title="Delete"><i class="fas fa-trash"></i></button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                    <% } else { %>
+                    <div class="p-6 md:p-8 text-center text-gray-400">
+                        <i class="fas fa-robot text-4xl mb-3"></i>
+                        <p>No Bot V2 configured.</p>
+                        <p class="text-sm mt-1">
+                            <a href="/profiles/<%= profile.id %>/bots-v2/new" class="text-blue-600 hover:underline">Add your first Bot V2</a>
                         </p>
                     </div>
                     <% } %>

@@ -12,7 +12,7 @@ import { Telegram } from '../notify/telegram';
 
 import { Ta } from './ta';
 
-import { SignalRepository, CandlestickRepository, PositionHistoryRepository, BacktestRunRepository } from '../repository';
+import { SignalRepository, CandlestickRepository, PositionHistoryRepository, BacktestRunRepository, AiPolicyRepository } from '../repository';
 import { StrategyExecutor } from './strategy/v2/typed_backtest';
 
 import { Trade } from './trade';
@@ -27,6 +27,7 @@ import { SymbolSearchService } from './system/symbol_search_service';
 import { ProfileService } from '../profile/profile_service';
 import { ProfilePairService } from './profile_pair_service';
 import { BotRunner } from '../strategy/bot_runner';
+import { BotRunnerV2 } from '../strategy/bot_runner_v2';
 import { TechnicalAnalysisValidator } from '../utils/technical_analysis_validator';
 import { DATABASE_SCHEMA } from '../utils/database_schema';
 import { WinstonSqliteTransport } from '../utils/winston_sqlite_transport';
@@ -83,6 +84,7 @@ import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
 import { AiStatusService } from '../ai/ai_status_service';
+import { AdaptivePolicyService } from '../ai/adaptive_policy_service';
 import type { AiServiceConfig } from '../ai/types';
 
 // Interfaces
@@ -120,6 +122,7 @@ export { ProfilePairService } from './profile_pair_service';
 export { StrategyExecutor } from './strategy/v2/typed_backtest';
 export { FileCache } from '../utils/file_cache';
 export { BotRunner } from '../strategy/bot_runner';
+export { BotRunnerV2 } from '../strategy/bot_runner_v2';
 export { ExchangeInstanceService } from './system/exchange_instance_service';
 export { BinancePriceService } from '../utils/binance_price_service';
 export { AiService, NoopAiService } from '../ai/ai_service';
@@ -139,6 +142,7 @@ let signalRepository: SignalRepository;
 let candlestickRepository: CandlestickRepository;
 let positionHistoryRepository: PositionHistoryRepository;
 let backtestRunRepository: BacktestRunRepository;
+let aiPolicyRepository: AiPolicyRepository;
 let backtestJobService: BacktestJobService;
 
 let strategyExecutor: StrategyExecutor;
@@ -161,10 +165,12 @@ let profileService: ProfileService;
 let profilePairService: ProfilePairService;
 let fileCache: FileCache;
 let botRunner: BotRunner;
+let botRunnerV2: BotRunnerV2;
 let exchangeInstanceService: ExchangeInstanceService;
 let binancePriceService: BinancePriceService;
 let aiService: AiService;
 let aiStatusService: AiStatusService;
+let adaptivePolicyService: AdaptivePolicyService;
 
 const parameters: Parameters = {
   projectDir: ''
@@ -192,6 +198,7 @@ export interface Services {
   getTickerLogRepository(): TickerLogRepository;
   getTickerRepository(): TickerRepository;
   getAiStatusService(): AiStatusService;
+  getAdaptivePolicyService(): AdaptivePolicyService;
   getQueue(): QueueManager;
   getCandleExportHttp(): CandleExportHttp;
   getExchangeCandleCombine(): ExchangeCandleCombine;
@@ -225,8 +232,10 @@ export interface Services {
   getV2StrategyRegistry(): StrategyRegistry;
   getFileCache(): FileCache;
   getBotRunner(): BotRunner;
+  getBotRunnerV2(): BotRunnerV2;
   getBinancePriceService(): BinancePriceService;
   getAiService(): AiService;
+  getAiPolicyRepository(): AiPolicyRepository;
 }
 
 const services: Services = {
@@ -495,7 +504,14 @@ const services: Services = {
   },
 
   createTradeInstance: function (): Trade {
-    return new Trade(this.getNotifier(), this.getLogger(), this.getLogsRepository(), this.getTickerLogRepository(), this.getBotRunner());
+    return new Trade(
+      this.getNotifier(),
+      this.getLogger(),
+      this.getLogsRepository(),
+      this.getTickerLogRepository(),
+      this.getBotRunner(),
+      this.getBotRunnerV2()
+    );
   },
 
   createMailer: function (): any {
@@ -622,7 +638,8 @@ const services: Services = {
       this.getProfileService(),
       this.getProfilePairService(),
       this.getV2StrategyRegistry(),
-      this.getCcxtCandleWatchService()
+      this.getCcxtCandleWatchService(),
+      this.getAdaptivePolicyService()
     );
   },
 
@@ -727,6 +744,22 @@ const services: Services = {
     ));
   },
 
+  getBotRunnerV2: function (): BotRunnerV2 {
+    if (botRunnerV2) {
+      return botRunnerV2;
+    }
+
+    return (botRunnerV2 = new BotRunnerV2(
+      this.getProfileService(),
+      this.getStrategyExecutor(),
+      this.getNotifier(),
+      this.getSignalRepository(),
+      this.getPositionHistoryRepository(),
+      this.getAdaptivePolicyService(),
+      this.getLogger()
+    ));
+  },
+
   getBinancePriceService: function (): BinancePriceService {
     if (binancePriceService) {
       return binancePriceService;
@@ -753,6 +786,20 @@ const services: Services = {
     }
 
     return (aiService = new NoopAiService());
+  },
+
+  getAiPolicyRepository: function (): AiPolicyRepository {
+    if (aiPolicyRepository) {
+      return aiPolicyRepository;
+    }
+    return (aiPolicyRepository = new AiPolicyRepository(this.getDatabase()));
+  },
+
+  getAdaptivePolicyService: function (): AdaptivePolicyService {
+    if (adaptivePolicyService) {
+      return adaptivePolicyService;
+    }
+    return (adaptivePolicyService = new AdaptivePolicyService(this.getAiPolicyRepository(), this.getLogger()));
   },
 
   getAiStatusService: function (): AiStatusService {

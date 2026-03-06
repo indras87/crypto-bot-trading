@@ -4,6 +4,7 @@ import { ProfilePairService } from '../modules/profile_pair_service';
 import { Profile } from '../profile/types';
 import { StrategyRegistry } from '../modules/strategy/v2/strategy_registry';
 import { CcxtCandleWatchService } from '../modules/system/ccxt_candle_watch_service';
+import { AdaptivePolicyService } from '../ai/adaptive_policy_service';
 import express from 'express';
 
 export class ProfileController extends BaseController {
@@ -12,7 +13,8 @@ export class ProfileController extends BaseController {
     private profileService: ProfileService,
     private pairService: ProfilePairService,
     private strategyRegistry: StrategyRegistry,
-    private ccxtCandleWatchService: CcxtCandleWatchService
+    private ccxtCandleWatchService: CcxtCandleWatchService,
+    private adaptivePolicyService: AdaptivePolicyService
   ) {
     super(templateHelpers);
   }
@@ -33,6 +35,11 @@ export class ProfileController extends BaseController {
     router.post('/profiles/:id/bots', this.createBot.bind(this));
     router.post('/profiles/:id/bots/:botId', this.updateBot.bind(this));
     router.post('/profiles/:id/bots/:botId/delete', this.deleteBot.bind(this));
+    router.get('/profiles/:id/bots-v2/new', this.newBotV2Form.bind(this));
+    router.get('/profiles/:id/bots-v2/:botId/edit', this.editBotV2Form.bind(this));
+    router.post('/profiles/:id/bots-v2', this.createBotV2.bind(this));
+    router.post('/profiles/:id/bots-v2/:botId', this.updateBotV2.bind(this));
+    router.post('/profiles/:id/bots-v2/:botId/delete', this.deleteBotV2.bind(this));
 
     // API Routes
     router.get('/api/profiles/:id/balances', this.getBalances.bind(this));
@@ -43,6 +50,7 @@ export class ProfileController extends BaseController {
     router.get('/api/exchanges', this.getExchanges.bind(this));
     router.get('/api/profiles/:id/pairs', this.getPairs.bind(this));
     router.get('/api/strategies', this.getStrategies.bind(this));
+    router.get('/api/ai/policy-status-v2', this.getAiPolicyStatusV2.bind(this));
   }
 
   private async index(req: express.Request, res: express.Response): Promise<void> {
@@ -408,5 +416,151 @@ export class ProfileController extends BaseController {
     this.profileService.deleteBot(id, botId);
     this.ccxtCandleWatchService.restart();
     res.redirect('/profiles/' + id);
+  }
+
+  private async newBotV2Form(req: express.Request, res: express.Response): Promise<void> {
+    const { id } = req.params;
+    const profile = this.profileService.getProfile(id);
+
+    if (!profile) {
+      res.status(404).send('Profile not found');
+      return;
+    }
+
+    const strategies = this.getStrategiesWithDefaults();
+    const pairs = await this.getPairsForProfile(profile);
+
+    this.render(res, 'profile/bot_v2_form', {
+      activePage: 'settings', activeSettingsPage: 'profiles',
+      title: 'New Bot V2 | Crypto Bot',
+      profile,
+      bot: null,
+      strategies,
+      pairs,
+      isEdit: false,
+    });
+  }
+
+  private async editBotV2Form(req: express.Request, res: express.Response): Promise<void> {
+    const { id, botId } = req.params;
+    const profile = this.profileService.getProfile(id);
+
+    if (!profile) {
+      res.status(404).send('Profile not found');
+      return;
+    }
+
+    const bot = this.profileService.getBotV2(id, botId);
+    if (!bot) {
+      res.status(404).send('Bot V2 not found');
+      return;
+    }
+
+    const strategies = this.getStrategiesWithDefaults();
+    const pairs = await this.getPairsForProfile(profile);
+
+    this.render(res, 'profile/bot_v2_form', {
+      activePage: 'settings', activeSettingsPage: 'profiles',
+      title: 'Edit Bot V2 | Crypto Bot',
+      profile,
+      bot,
+      strategies,
+      pairs,
+      isEdit: true,
+    });
+  }
+
+  private async createBotV2(req: express.Request, res: express.Response): Promise<void> {
+    const { id } = req.params;
+    const { name, strategy, pair, interval, capital, status, options, useAiValidator } = req.body;
+
+    let parsedOptions: Record<string, any> | undefined;
+    if (options && options.trim()) {
+      try {
+        parsedOptions = JSON.parse(options);
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+
+    this.profileService.createBotV2(id, {
+      name,
+      strategy,
+      pair,
+      interval,
+      capital: parseFloat(capital),
+      status: status === 'on' ? 'running' : 'stopped',
+      useAiValidator: useAiValidator === 'on',
+      executionMode: req.body.executionMode === 'live' ? 'live' : 'paper',
+      adaptiveEnabled: req.body.adaptiveEnabled === 'on',
+      adaptiveUpdateEveryTrades: Math.max(5, parseInt(req.body.adaptiveUpdateEveryTrades, 10) || 20),
+      maxDrawdownPct: Math.max(1, parseFloat(req.body.maxDrawdownPct) || 12),
+      futuresOnlyLongShort: req.body.futuresOnlyLongShort === 'on',
+      aiMinConfidence: Math.max(0.5, Math.min(0.95, parseFloat(req.body.aiMinConfidence) || 0.7)),
+      options: parsedOptions
+    });
+
+    this.ccxtCandleWatchService.restart();
+    res.redirect('/profiles/' + id);
+  }
+
+  private async updateBotV2(req: express.Request, res: express.Response): Promise<void> {
+    const { id, botId } = req.params;
+    const { name, strategy, pair, interval, capital, status, options, useAiValidator } = req.body;
+
+    let parsedOptions: Record<string, any> | undefined;
+    if (options && options.trim()) {
+      try {
+        parsedOptions = JSON.parse(options);
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+
+    this.profileService.updateBotV2(id, botId, {
+      name,
+      strategy,
+      pair,
+      interval,
+      capital: parseFloat(capital),
+      status: status === 'on' ? 'running' : 'stopped',
+      useAiValidator: useAiValidator === 'on',
+      executionMode: req.body.executionMode === 'live' ? 'live' : 'paper',
+      adaptiveEnabled: req.body.adaptiveEnabled === 'on',
+      adaptiveUpdateEveryTrades: Math.max(5, parseInt(req.body.adaptiveUpdateEveryTrades, 10) || 20),
+      maxDrawdownPct: Math.max(1, parseFloat(req.body.maxDrawdownPct) || 12),
+      futuresOnlyLongShort: req.body.futuresOnlyLongShort === 'on',
+      aiMinConfidence: Math.max(0.5, Math.min(0.95, parseFloat(req.body.aiMinConfidence) || 0.7)),
+      options: parsedOptions
+    });
+
+    this.ccxtCandleWatchService.restart();
+    res.redirect('/profiles/' + id);
+  }
+
+  private async deleteBotV2(req: express.Request, res: express.Response): Promise<void> {
+    const { id, botId } = req.params;
+    this.profileService.deleteBotV2(id, botId);
+    this.ccxtCandleWatchService.restart();
+    res.redirect('/profiles/' + id);
+  }
+
+  private async getAiPolicyStatusV2(req: express.Request, res: express.Response): Promise<void> {
+    const profileId = String(req.query.profileId || '');
+    const botId = String(req.query.botId || '');
+
+    if (!profileId || !botId) {
+      res.status(400).json({ error: 'profileId and botId are required' });
+      return;
+    }
+
+    const bot = this.profileService.getBotV2(profileId, botId);
+    if (!bot) {
+      res.status(404).json({ error: 'Bot V2 not found' });
+      return;
+    }
+
+    const status = this.adaptivePolicyService.getPolicyStatus(profileId, bot);
+    res.json({ success: true, status });
   }
 }

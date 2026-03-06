@@ -144,4 +144,67 @@ CREATE INDEX IF NOT EXISTS backtest_runs_roi_idx ON backtest_runs (total_profit_
 CREATE INDEX IF NOT EXISTS backtest_runs_sharpe_idx ON backtest_runs (sharpe_ratio);
 CREATE INDEX IF NOT EXISTS backtest_runs_drawdown_idx ON backtest_runs (max_drawdown);
 CREATE INDEX IF NOT EXISTS backtest_runs_group_idx ON backtest_runs (run_group_id);
+
+CREATE TABLE IF NOT EXISTS ai_signal_decisions (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id            VARCHAR(64)   NOT NULL,
+  bot_id                VARCHAR(64)   NOT NULL,
+  exchange              VARCHAR(255)  NOT NULL,
+  symbol                VARCHAR(255)  NOT NULL,
+  timeframe             VARCHAR(20)   NOT NULL,
+  signal                VARCHAR(20)   NOT NULL,
+  action                VARCHAR(20)   NOT NULL,
+  confidence            REAL          NOT NULL,
+  confirmed             INTEGER       NOT NULL,
+  risk_level            VARCHAR(20)   NULL,
+  reason_code           VARCHAR(120)  NULL,
+  reasoning             TEXT          NULL,
+  indicator_json        TEXT          NULL,
+  created_at            BIGINT        NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ai_signal_decisions_bot_time_idx ON ai_signal_decisions (profile_id, bot_id, created_at);
+
+CREATE TABLE IF NOT EXISTS bot_risk_state (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id            VARCHAR(64)   NOT NULL,
+  bot_id                VARCHAR(64)   NOT NULL,
+  max_drawdown_pct      REAL          NOT NULL,
+  equity_peak           REAL          NOT NULL,
+  current_equity        REAL          NOT NULL,
+  current_drawdown_pct  REAL          NOT NULL,
+  paused                INTEGER       NOT NULL DEFAULT 0,
+  pause_reason          TEXT          NULL,
+  updated_at            BIGINT        NOT NULL,
+  UNIQUE(profile_id, bot_id)
+);
+
+CREATE TABLE IF NOT EXISTS policy_snapshots (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id            VARCHAR(64)   NOT NULL,
+  bot_id                VARCHAR(64)   NOT NULL,
+  policy_version        INTEGER       NOT NULL,
+  ai_min_confidence     REAL          NOT NULL,
+  strategy_options_json TEXT          NULL,
+  objective_score       REAL          NOT NULL,
+  source                VARCHAR(40)   NOT NULL,
+  created_at            BIGINT        NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS policy_snapshots_unique_version_idx ON policy_snapshots (profile_id, bot_id, policy_version);
+CREATE INDEX IF NOT EXISTS policy_snapshots_bot_time_idx ON policy_snapshots (profile_id, bot_id, created_at);
+
+CREATE TABLE IF NOT EXISTS policy_updates (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  profile_id            VARCHAR(64)   NOT NULL,
+  bot_id                VARCHAR(64)   NOT NULL,
+  previous_version      INTEGER       NOT NULL,
+  next_version          INTEGER       NOT NULL,
+  previous_confidence   REAL          NOT NULL,
+  next_confidence       REAL          NOT NULL,
+  objective_before      REAL          NOT NULL,
+  objective_after       REAL          NOT NULL,
+  accepted              INTEGER       NOT NULL,
+  reason                TEXT          NULL,
+  created_at            BIGINT        NOT NULL
+);
+CREATE INDEX IF NOT EXISTS policy_updates_bot_time_idx ON policy_updates (profile_id, bot_id, created_at);
 `;
