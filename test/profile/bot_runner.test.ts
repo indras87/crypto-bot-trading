@@ -64,6 +64,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       getProfile: (id: string) => undefined,
       fetchTicker: async () => ({ bid: 50000, ask: 50000, last: 50000 }),
       fetchBalances: async () => [{ currency: 'BTC', total: 0.1, free: 0.1, used: 0 }],
+      fetchOpenPositions: async () => [],
       placeOrder: async () => ({ id: 'order-1', price: 50000, amount: 0.02 } as OrderResult),
       closePosition: async () => ({ id: 'close-1', price: 51000, amount: -0.02 }),
       updateBot: () => {}
@@ -140,6 +141,7 @@ describe('#BotRunner notification order pnl autopause', () => {
 
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
+      profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
 
       const botRunner = createBotRunner();
       const runBot = (botRunner as any).runBot.bind(botRunner);
@@ -202,6 +204,7 @@ describe('#BotRunner notification order pnl autopause', () => {
 
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
+      profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} }];
       profileServiceMock.closePosition = async () => {
         throw new Error('Position not found');
       };
@@ -227,6 +230,7 @@ describe('#BotRunner notification order pnl autopause', () => {
 
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
+      profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
       profileServiceMock.closePosition = async () => ({ id: 'close-1', price: 51000, amount: -0.02 });
 
       const botRunner = createBotRunner();
@@ -343,6 +347,82 @@ describe('#BotRunner notification order pnl autopause', () => {
       const signalMessage = sentMessages.find(m => m.includes('[short'));
       assert.ok(signalMessage);
       assert.ok(signalMessage!.includes('@'));  // Should include price with @
+    });
+  });
+
+  describe('Live futures position sync', () => {
+    it('skips close silently when exchange position is already flat', async () => {
+      const profile = createTestProfile(true);
+      const bot = { ...createTestBot(), pair: 'BTC/USDT:USDT' };
+
+      let closeCalls = 0;
+      profileServiceMock.getProfiles = () => [profile];
+      strategyExecutorMock.executeStrategy = async () => 'close';
+      profileServiceMock.fetchOpenPositions = async () => [];
+      profileServiceMock.closePosition = async () => {
+        closeCalls += 1;
+        return { id: 'close-1', price: 51000, amount: -0.02 };
+      };
+
+      const botRunner = createBotRunner();
+      const runBot = (botRunner as any).runBot.bind(botRunner);
+      await runBot(bot, profile);
+
+      assert.strictEqual(closeCalls, 0);
+      assert.strictEqual(sentMessages.filter(m => m.includes('[ORDER_FAIL]')).length, 0);
+      assert.strictEqual(sentMessages.filter(m => m.includes('[ORDER_OK]') && m.includes('signal=close')).length, 0);
+    });
+
+    it('auto-reverses from short to long for futures', async () => {
+      const profile = createTestProfile(true);
+      const bot = { ...createTestBot(), pair: 'BTC/USDT:USDT' };
+      const callOrder: string[] = [];
+
+      profileServiceMock.getProfiles = () => [profile];
+      strategyExecutorMock.executeStrategy = async () => 'long';
+      profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} }];
+      profileServiceMock.closePosition = async () => {
+        callOrder.push('close');
+        return { id: 'close-1', price: 49000, amount: 0.02 };
+      };
+      profileServiceMock.placeOrder = async () => {
+        callOrder.push('open-long');
+        return { id: 'order-1', price: 50000, amount: 0.02, raw: {} };
+      };
+
+      const botRunner = createBotRunner();
+      const runBot = (botRunner as any).runBot.bind(botRunner);
+      await runBot(bot, profile);
+
+      assert.deepStrictEqual(callOrder, ['close', 'open-long']);
+      assert.ok(sentMessages.some(m => m.includes('[ORDER_OK]') && m.includes('signal=close')));
+      assert.ok(sentMessages.some(m => m.includes('[ORDER_OK]') && m.includes('signal=long')));
+    });
+
+    it('auto-reverses from long to short for futures', async () => {
+      const profile = createTestProfile(true);
+      const bot = { ...createTestBot(), pair: 'BTC/USDT:USDT' };
+      const callOrder: string[] = [];
+
+      profileServiceMock.getProfiles = () => [profile];
+      strategyExecutorMock.executeStrategy = async () => 'short';
+      profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
+      profileServiceMock.closePosition = async () => {
+        callOrder.push('close');
+        return { id: 'close-1', price: 51000, amount: -0.02 };
+      };
+      profileServiceMock.placeOrder = async () => {
+        callOrder.push('open-short');
+        return { id: 'order-1', price: 50000, amount: 0.02, raw: {} };
+      };
+
+      const botRunner = createBotRunner();
+      const runBot = (botRunner as any).runBot.bind(botRunner);
+      await runBot(bot, profile);
+
+      assert.deepStrictEqual(callOrder, ['close', 'open-short']);
+      assert.ok(sentMessages.some(m => m.includes('[ORDER_OK]') && m.includes('signal=close')));
+      assert.ok(sentMessages.some(m => m.includes('[ORDER_OK]') && m.includes('signal=short')));
     });
   });
 });

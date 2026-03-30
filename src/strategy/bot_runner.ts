@@ -3,7 +3,7 @@ import { Logger } from '../modules/services';
 import { SignalRepository, PositionHistoryRepository } from '../repository';
 import { ProfileService } from '../profile/profile_service';
 import { StrategyExecutor } from '../modules/strategy/v2/typed_backtest';
-import type { Bot, Profile } from '../profile/types';
+import type { Bot, Profile, PositionInfo } from '../profile/types';
 
 /** Convert a period string (e.g. "15m", "4h", "1d") to whole minutes. */
 function periodToMinutes(period: string): number {
@@ -28,6 +28,8 @@ function periodToMinutes(period: string): number {
 function isFuturesPair(pair: string): boolean {
   return pair.includes(':');
 }
+
+type LivePositionSide = 'flat' | 'long' | 'short';
 
 export class BotRunner {
   private started = false;
@@ -210,62 +212,44 @@ export class BotRunner {
    */
   private async executeSignal(bot: Bot, profile: Profile, signal: string): Promise<void> {
     const mode: 'live' = 'live';
+    if (isFuturesPair(bot.pair)) {
+      await this.executeFuturesSignal(bot, profile, signal, mode);
+      return;
+    }
+
     switch (signal) {
       case 'close': {
         try {
-          if (isFuturesPair(bot.pair)) {
-            const closeResult = await this.profileService.closePosition(profile.id, bot.pair, 'market');
-            const exitPrice = closeResult?.price || 0;
-            const contracts = Math.abs(closeResult?.amount || 0);
-            const exitValue = exitPrice * contracts;
-            const entryValue = bot.capital;
-            const realizedPnl = exitValue - entryValue;
+          // Spot: sell the full free balance of the base currency
+          const baseCurrency = bot.pair.split('/')[0];
+          const balances = await this.profileService.fetchBalances(profile);
+          const base = balances.find(b => b.currency === baseCurrency);
 
-            // Send ORDER_OK notification
-            this.notifyOrderOk(profile, bot, mode, 'close', exitPrice, undefined, contracts, closeResult?.id);
-
-            // Send PNL notification
-            this.notifyPnl(profile, bot, mode, 'long' as const, undefined, exitPrice, realizedPnl, entryValue);
-
-            this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
-          } else {
-            // Spot: sell the full free balance of the base currency
-            const baseCurrency = bot.pair.split('/')[0];
-            const balances = await this.profileService.fetchBalances(profile);
-            const base = balances.find(b => b.currency === baseCurrency);
-
-            if (!base || base.free <= 0) {
-              this.logger.warn(`BotRunner: no balance to close for ${bot.pair}`);
-              return;
-            }
-
-            try {
-              const orderResult = await this.profileService.placeOrder(profile.id, {
-                pair: bot.pair,
-                side: 'sell',
-                type: 'market',
-                amount: base.free,
-                isQuoteCurrency: false
-              });
-
-              const exitPrice = orderResult.price || 0;
-              const exitValue = exitPrice * base.free;
-              const entryValue = bot.capital;
-              const realizedPnl = exitValue - entryValue;
-
-              // Send ORDER_OK notification
-              this.notifyOrderOk(profile, bot, mode, 'close', exitPrice, base.free, undefined, orderResult.id);
-
-              // Send PNL notification
-              this.notifyPnl(profile, bot, mode, 'long' as const, undefined, exitPrice, realizedPnl, entryValue);
-
-              this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
-            } catch (err) {
-              const errorMsg = err instanceof Error ? err.message : String(err);
-              this.notifyOrderFail(profile, bot, mode, 'close', errorMsg);
-              throw err;
-            }
+          if (!base || base.free <= 0) {
+            this.logger.warn(`BotRunner: no balance to close for ${bot.pair}`);
+            return;
           }
+
+          const orderResult = await this.profileService.placeOrder(profile.id, {
+            pair: bot.pair,
+            side: 'sell',
+            type: 'market',
+            amount: base.free,
+            isQuoteCurrency: false
+          });
+
+          const exitPrice = orderResult.price || 0;
+          const exitValue = exitPrice * base.free;
+          const entryValue = bot.capital;
+          const realizedPnl = exitValue - entryValue;
+
+          // Send ORDER_OK notification
+          this.notifyOrderOk(profile, bot, mode, 'close', exitPrice, base.free, undefined, orderResult.id);
+
+          // Send PNL notification
+          this.notifyPnl(profile, bot, mode, 'long' as const, undefined, exitPrice, realizedPnl, entryValue);
+
+          this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           this.notifyOrderFail(profile, bot, mode, 'close', errorMsg);
@@ -311,6 +295,109 @@ export class BotRunner {
         }
         break;
       }
+    }
+  }
+
+  private async executeFuturesSignal(
+    bot: Bot,
+    profile: Profile,
+    signal: string,
+    mode: 'live'
+  ): Promise<void> {
+    const liveSide = await this.getLivePositionSide(profile.id, bot.pair);
+
+    switch (signal) {
+      case 'close':
+        if (liveSide === 'flat') {
+          this.logger.info(`BotRunner: skipped close for ${profile.exchange}:${bot.pair} because exchange position is already flat`);
+          return;
+        }
+        await this.closeLiveFuturesPosition(bot, profile, mode, liveSide);
+        return;
+
+      case 'long':
+      case 'short':
+        if (liveSide === signal) {
+          this.logger.info(`BotRunner: skipped ${signal} for ${profile.exchange}:${bot.pair} because exchange position already matches signal`);
+          return;
+        }
+
+        if (liveSide !== 'flat') {
+          await this.closeLiveFuturesPosition(bot, profile, mode, liveSide);
+        }
+
+        await this.openLivePosition(bot, profile, mode, signal);
+        return;
+    }
+  }
+
+  private async getLivePositionSide(profileId: string, pair: string): Promise<LivePositionSide> {
+    const positions = await this.profileService.fetchOpenPositions(profileId);
+    const position = positions.find((entry: PositionInfo) => entry.symbol === pair && Math.abs(entry.contracts) > 0);
+    return position?.side ?? 'flat';
+  }
+
+  private async closeLiveFuturesPosition(
+    bot: Bot,
+    profile: Profile,
+    mode: 'live',
+    closingSide: 'long' | 'short'
+  ): Promise<void> {
+    try {
+      const closeResult = await this.profileService.closePosition(profile.id, bot.pair, 'market');
+      const exitPrice = closeResult?.price || 0;
+      const contracts = Math.abs(closeResult?.amount || 0);
+      const exitValue = exitPrice * contracts;
+      const entryValue = bot.capital;
+      const realizedPnl = closingSide === 'long' ? exitValue - entryValue : entryValue - exitValue;
+
+      this.notifyOrderOk(profile, bot, mode, 'close', exitPrice, undefined, contracts, closeResult?.id);
+      this.notifyPnl(profile, bot, mode, closingSide, undefined, exitPrice, realizedPnl, entryValue);
+      this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.notifyOrderFail(profile, bot, mode, 'close', errorMsg);
+      throw err;
+    }
+  }
+
+  private async openLivePosition(
+    bot: Bot,
+    profile: Profile,
+    mode: 'live',
+    signal: 'long' | 'short'
+  ): Promise<void> {
+    try {
+      const orderResult = await this.profileService.placeOrder(profile.id, {
+        pair: bot.pair,
+        side: signal === 'long' ? 'buy' : 'sell',
+        type: 'market',
+        amount: bot.capital,
+        isQuoteCurrency: true
+      });
+
+      const entryPrice = orderResult.price || 0;
+      const contracts = orderResult.amount || bot.capital / entryPrice;
+
+      this.notifyOrderOk(profile, bot, mode, signal, entryPrice, undefined, contracts, orderResult.id);
+
+      this.positionHistoryRepository.openPosition({
+        profile_id: profile.id,
+        profile_name: profile.name,
+        bot_id: bot.id,
+        bot_name: bot.name,
+        exchange: profile.exchange,
+        symbol: bot.pair,
+        side: signal,
+        entry_price: entryPrice,
+        contracts: contracts,
+        opened_at: Math.floor(Date.now() / 1000),
+        status: 'open'
+      });
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      this.notifyOrderFail(profile, bot, mode, signal, errorMsg);
+      throw err;
     }
   }
 
