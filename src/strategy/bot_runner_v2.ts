@@ -3,7 +3,7 @@ import { Logger } from '../modules/services';
 import { SignalRepository, PositionHistoryRepository } from '../repository';
 import { ProfileService } from '../profile/profile_service';
 import { StrategyExecutor } from '../modules/strategy/v2/typed_backtest';
-import type { BotV2, Profile } from '../profile/types';
+import type { BotV2, Profile, PositionInfo } from '../profile/types';
 import { AdaptivePolicyService } from '../ai/adaptive_policy_service';
 
 function periodToMinutes(period: string): number {
@@ -24,6 +24,8 @@ function periodToMinutes(period: string): number {
 function isFuturesPair(pair: string): boolean {
   return pair.includes(':');
 }
+
+type LivePositionSide = 'flat' | 'long' | 'short';
 
 export class BotRunnerV2 {
   private started = false;
@@ -134,6 +136,11 @@ export class BotRunnerV2 {
       return;
     }
 
+    if (isFuturesPair(bot.pair)) {
+      await this.executeLiveFuturesSignal(bot, profile, signal, marketPrice);
+      return;
+    }
+
     if (signal === 'close') {
       const openPosition = this.positionHistoryRepository
         .getOpenPositions(profile.id)
@@ -155,6 +162,100 @@ export class BotRunnerV2 {
 
     if (signal !== 'long' && signal !== 'short') return;
 
+    const orderResult = await this.profileService.placeOrder(profile.id, {
+      pair: bot.pair,
+      side: signal === 'long' ? 'buy' : 'sell',
+      type: 'market',
+      amount: bot.capital,
+      isQuoteCurrency: true
+    });
+
+    const entryPrice = orderResult.price || marketPrice;
+    this.positionHistoryRepository.openPosition({
+      profile_id: profile.id,
+      profile_name: profile.name,
+      bot_id: bot.id,
+      bot_name: bot.name,
+      exchange: profile.exchange,
+      symbol: bot.pair,
+      side: signal,
+      entry_price: entryPrice,
+      contracts: orderResult.amount || bot.capital / Math.max(entryPrice, 1e-9),
+      opened_at: Math.floor(Date.now() / 1000),
+      status: 'open'
+    });
+  }
+
+  private async executeLiveFuturesSignal(
+    bot: BotV2,
+    profile: Profile,
+    signal: string,
+    marketPrice: number
+  ): Promise<void> {
+    const livePosition = await this.getLivePosition(profile.id, bot.pair);
+    const liveSide = livePosition?.side ?? 'flat';
+
+    if (signal === 'close') {
+      if (liveSide === 'flat') {
+        this.logger.info(`BotRunnerV2: skipped close for ${profile.exchange}:${bot.pair} because exchange position is already flat`);
+        return;
+      }
+
+      await this.closeLiveFuturesPosition(bot, profile, marketPrice, livePosition!);
+      return;
+    }
+
+    if (signal !== 'long' && signal !== 'short') return;
+
+    if (liveSide === signal) {
+      this.logger.info(`BotRunnerV2: skipped ${signal} for ${profile.exchange}:${bot.pair} because exchange position already matches signal`);
+      return;
+    }
+
+    if (liveSide !== 'flat') {
+      const closeOutcome = await this.closeLiveFuturesPosition(bot, profile, marketPrice, livePosition!);
+      if (closeOutcome.paused) {
+        return;
+      }
+    }
+
+    await this.openLivePosition(bot, profile, signal, marketPrice);
+  }
+
+  private async getLivePosition(profileId: string, pair: string): Promise<PositionInfo | undefined> {
+    const positions = await this.profileService.fetchOpenPositions(profileId);
+    return positions.find(position => position.symbol === pair && Math.abs(position.contracts) > 0);
+  }
+
+  private async closeLiveFuturesPosition(
+    bot: BotV2,
+    profile: Profile,
+    marketPrice: number,
+    livePosition: PositionInfo
+  ): Promise<{ paused: boolean }> {
+    const closeResult = await this.profileService.closePosition(profile.id, bot.pair, 'market');
+    const exitPrice = closeResult?.price || marketPrice;
+    const contracts = Math.abs(closeResult?.amount || livePosition.contracts || 0);
+
+    const openPosition = this.positionHistoryRepository
+      .getOpenPositions(profile.id)
+      .find(p => p.bot_id === bot.id && p.symbol === bot.pair);
+    const side = (livePosition.side || openPosition?.side || 'long') as 'long' | 'short';
+    const entryPrice = Number(livePosition.entryPrice || openPosition?.entry_price || exitPrice);
+    const realizedPnl = side === 'long' ? (exitPrice - entryPrice) * contracts : (entryPrice - exitPrice) * contracts;
+
+    this.positionHistoryRepository.closePosition(profile.id, bot.id, bot.pair, exitPrice, realizedPnl, 0);
+    const risk = this.adaptivePolicyService.recordClosedTrade(profile.id, bot, { realizedPnl });
+    this.applyAutoPause(profile, bot, risk?.pause_reason);
+    return { paused: Boolean(risk?.pause_reason) };
+  }
+
+  private async openLivePosition(
+    bot: BotV2,
+    profile: Profile,
+    signal: 'long' | 'short',
+    marketPrice: number
+  ): Promise<void> {
     const orderResult = await this.profileService.placeOrder(profile.id, {
       pair: bot.pair,
       side: signal === 'long' ? 'buy' : 'sell',
