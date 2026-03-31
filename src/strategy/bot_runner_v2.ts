@@ -5,6 +5,7 @@ import { ProfileService } from '../profile/profile_service';
 import { StrategyExecutor } from '../modules/strategy/v2/typed_backtest';
 import type { BotV2, Profile, PositionInfo } from '../profile/types';
 import { AdaptivePolicyService } from '../ai/adaptive_policy_service';
+import { PositionHistorySyncService } from './position_history_sync_service';
 
 function periodToMinutes(period: string): number {
   const unit = period.slice(-1).toLowerCase();
@@ -25,8 +26,6 @@ function isFuturesPair(pair: string): boolean {
   return pair.includes(':');
 }
 
-type LivePositionSide = 'flat' | 'long' | 'short';
-
 export class BotRunnerV2 {
   private started = false;
   private paperPositions = new Map<string, { side: 'long' | 'short'; entryPrice: number; contracts: number }>();
@@ -37,6 +36,7 @@ export class BotRunnerV2 {
     private readonly notifier: Notify,
     private readonly signalRepository: SignalRepository,
     private readonly positionHistoryRepository: PositionHistoryRepository,
+    private readonly positionHistorySyncService: PositionHistorySyncService,
     private readonly adaptivePolicyService: AdaptivePolicyService,
     private readonly logger: Logger
   ) {}
@@ -192,7 +192,7 @@ export class BotRunnerV2 {
     signal: string,
     marketPrice: number
   ): Promise<void> {
-    const livePosition = await this.getLivePosition(profile.id, bot.pair);
+    const livePosition = await this.positionHistorySyncService.reconcileLiveBot(profile, bot);
     const liveSide = livePosition?.side ?? 'flat';
 
     if (signal === 'close') {
@@ -220,11 +220,6 @@ export class BotRunnerV2 {
     }
 
     await this.openLivePosition(bot, profile, signal, marketPrice);
-  }
-
-  private async getLivePosition(profileId: string, pair: string): Promise<PositionInfo | undefined> {
-    const positions = await this.profileService.fetchOpenPositions(profileId);
-    return positions.find(position => position.symbol === pair && Math.abs(position.contracts) > 0);
   }
 
   private async closeLiveFuturesPosition(

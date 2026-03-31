@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS position_history (
   exit_price      REAL         NULL,
   realized_pnl    REAL         NULL,
   fee             REAL         NULL,
+  closure_type    VARCHAR(20)  NOT NULL DEFAULT 'trade',
   status          VARCHAR(20)  NULL
 );
 CREATE INDEX IF NOT EXISTS pos_history_profile ON position_history (profile_id);

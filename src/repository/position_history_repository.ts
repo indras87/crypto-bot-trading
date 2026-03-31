@@ -23,6 +23,7 @@ export interface PositionHistoryRecord {
   exit_price?: number;
   realized_pnl?: number;
   fee?: number;
+  closure_type?: 'trade' | 'reconciled';
   status: 'open' | 'closed';
 }
 
@@ -71,7 +72,7 @@ export class PositionHistoryRepository {
   closePosition(profileId: string, botId: string, symbol: string, exitPrice: number, realizedPnl: number, fee: number = 0): void {
     const stmt = this.db.prepare(`
       UPDATE position_history
-      SET status = 'closed', closed_at = $closed_at, exit_price = $exit_price, realized_pnl = $realized_pnl, fee = $fee
+      SET status = 'closed', closed_at = $closed_at, exit_price = $exit_price, realized_pnl = $realized_pnl, fee = $fee, closure_type = 'trade'
       WHERE profile_id = $profile_id AND bot_id = $bot_id AND symbol = $symbol AND status = 'open'
     `);
 
@@ -83,6 +84,27 @@ export class PositionHistoryRepository {
       exit_price: exitPrice,
       realized_pnl: realizedPnl,
       fee: fee
+    });
+  }
+
+  reconcileOpenPositions(profileId: string, botId: string, symbol: string, closureType: 'reconciled' = 'reconciled'): void {
+    const stmt = this.db.prepare(`
+      UPDATE position_history
+      SET status = 'closed',
+          closed_at = $closed_at,
+          exit_price = NULL,
+          realized_pnl = NULL,
+          fee = 0,
+          closure_type = $closure_type
+      WHERE profile_id = $profile_id AND bot_id = $bot_id AND symbol = $symbol AND status = 'open'
+    `);
+
+    stmt.run({
+      profile_id: profileId,
+      bot_id: botId,
+      symbol,
+      closed_at: Math.floor(Date.now() / 1000),
+      closure_type: closureType
     });
   }
 

@@ -191,7 +191,7 @@ export class AiPolicyRepository {
     return this.db
       .prepare(
         `SELECT * FROM position_history
-         WHERE profile_id = $profile_id AND bot_id = $bot_id AND status = 'closed'
+         WHERE profile_id = $profile_id AND bot_id = $bot_id AND status = 'closed' AND COALESCE(closure_type, 'trade') = 'trade'
          ORDER BY closed_at DESC
          LIMIT $limit`
       )
@@ -201,7 +201,9 @@ export class AiPolicyRepository {
   countClosedTrades(profileId: string, botId: string): number {
     const row = this.db
       .prepare(
-        `SELECT COUNT(1) as total FROM position_history WHERE profile_id = $profile_id AND bot_id = $bot_id AND status = 'closed'`
+        `SELECT COUNT(1) as total
+         FROM position_history
+         WHERE profile_id = $profile_id AND bot_id = $bot_id AND status = 'closed' AND COALESCE(closure_type, 'trade') = 'trade'`
       )
       .get({ profile_id: profileId, bot_id: botId });
     return Number(row?.total || 0);

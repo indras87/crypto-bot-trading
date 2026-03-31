@@ -28,6 +28,7 @@ import { ProfileService } from '../profile/profile_service';
 import { ProfilePairService } from './profile_pair_service';
 import { BotRunner } from '../strategy/bot_runner';
 import { BotRunnerV2 } from '../strategy/bot_runner_v2';
+import { PositionHistorySyncService } from '../strategy/position_history_sync_service';
 import { TechnicalAnalysisValidator } from '../utils/technical_analysis_validator';
 import { DATABASE_SCHEMA } from '../utils/database_schema';
 import { WinstonSqliteTransport } from '../utils/winston_sqlite_transport';
@@ -166,6 +167,7 @@ let profilePairService: ProfilePairService;
 let fileCache: FileCache;
 let botRunner: BotRunner;
 let botRunnerV2: BotRunnerV2;
+let positionHistorySyncService: PositionHistorySyncService;
 let exchangeInstanceService: ExchangeInstanceService;
 let binancePriceService: BinancePriceService;
 let aiService: AiService;
@@ -199,6 +201,7 @@ export interface Services {
   getTickerRepository(): TickerRepository;
   getAiStatusService(): AiStatusService;
   getAdaptivePolicyService(): AdaptivePolicyService;
+  getPositionHistorySyncService(): PositionHistorySyncService;
   getQueue(): QueueManager;
   getCandleExportHttp(): CandleExportHttp;
   getExchangeCandleCombine(): ExchangeCandleCombine;
@@ -292,6 +295,12 @@ const services: Services = {
     const signalColumns = new Set(signalTableInfo.map(col => col.name));
     if (!signalColumns.has('interval')) {
       myDb.exec('ALTER TABLE signals ADD COLUMN interval VARCHAR(20) NULL;');
+    }
+
+    const posHistoryTableInfo = myDb.prepare('PRAGMA table_info(position_history)').all() as Array<{ name: string }>;
+    const posHistoryColumns = new Set(posHistoryTableInfo.map(col => col.name));
+    if (!posHistoryColumns.has('closure_type')) {
+      myDb.exec("ALTER TABLE position_history ADD COLUMN closure_type VARCHAR(20) NOT NULL DEFAULT 'trade';");
     }
 
     return (db = myDb);
@@ -509,6 +518,8 @@ const services: Services = {
       this.getLogger(),
       this.getLogsRepository(),
       this.getTickerLogRepository(),
+      this.getProfileService(),
+      this.getPositionHistorySyncService(),
       this.getBotRunner(),
       this.getBotRunnerV2()
     );
@@ -740,6 +751,7 @@ const services: Services = {
       this.getNotifier(),
       this.getSignalRepository(),
       this.getPositionHistoryRepository(),
+      this.getPositionHistorySyncService(),
       this.getLogger()
     ));
   },
@@ -755,7 +767,20 @@ const services: Services = {
       this.getNotifier(),
       this.getSignalRepository(),
       this.getPositionHistoryRepository(),
+      this.getPositionHistorySyncService(),
       this.getAdaptivePolicyService(),
+      this.getLogger()
+    ));
+  },
+
+  getPositionHistorySyncService: function (): PositionHistorySyncService {
+    if (positionHistorySyncService) {
+      return positionHistorySyncService;
+    }
+
+    return (positionHistorySyncService = new PositionHistorySyncService(
+      this.getProfileService(),
+      this.getPositionHistoryRepository(),
       this.getLogger()
     ));
   },

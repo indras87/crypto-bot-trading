@@ -8,6 +8,7 @@ describe('#BotRunnerV2 live futures sync', () => {
   let notifierMock: any;
   let signalRepositoryMock: any;
   let positionHistoryRepositoryMock: any;
+  let positionHistorySyncServiceMock: any;
   let adaptivePolicyServiceMock: any;
   let loggerMock: any;
 
@@ -17,6 +18,7 @@ describe('#BotRunnerV2 live futures sync', () => {
     notifierMock,
     signalRepositoryMock,
     positionHistoryRepositoryMock,
+    positionHistorySyncServiceMock,
     adaptivePolicyServiceMock,
     loggerMock
   );
@@ -63,6 +65,9 @@ describe('#BotRunnerV2 live futures sync', () => {
       closePosition: () => {},
       getOpenPositions: () => []
     };
+    positionHistorySyncServiceMock = {
+      reconcileLiveBot: async () => undefined
+    };
     adaptivePolicyServiceMock = {
       ensureInitialPolicy: () => {},
       isPaused: () => false,
@@ -80,6 +85,7 @@ describe('#BotRunnerV2 live futures sync', () => {
 
     strategyExecutorMock.executeStrategy = async () => 'close';
     profileServiceMock.fetchOpenPositions = async () => [];
+    positionHistorySyncServiceMock.reconcileLiveBot = async () => undefined;
     profileServiceMock.closePosition = async () => {
       closeCalls += 1;
       return { id: 'close-1', price: 51000, amount: -0.02 };
@@ -99,6 +105,7 @@ describe('#BotRunnerV2 live futures sync', () => {
 
     strategyExecutorMock.executeStrategy = async () => 'long';
     profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} }];
+    positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} });
     profileServiceMock.closePosition = async () => {
       callOrder.push('close');
       return { id: 'close-1', price: 49000, amount: 0.02 };

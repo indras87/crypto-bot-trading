@@ -10,6 +10,7 @@ describe('#BotRunner notification order pnl autopause', () => {
   let notifierMock: any;
   let signalRepositoryMock: any;
   let positionHistoryRepositoryMock: any;
+  let positionHistorySyncServiceMock: any;
   let loggerMock: any;
 
   const createBotRunner = () => {
@@ -19,6 +20,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       notifierMock,
       signalRepositoryMock,
       positionHistoryRepositoryMock,
+      positionHistorySyncServiceMock,
       loggerMock
     );
   };
@@ -90,6 +92,10 @@ describe('#BotRunner notification order pnl autopause', () => {
       getOpenPositions: () => []
     };
 
+    positionHistorySyncServiceMock = {
+      reconcileLiveBot: async (_profile: any, _bot: any) => undefined
+    };
+
     loggerMock = {
       info: () => {},
       warn: () => {},
@@ -142,6 +148,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
       profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} });
 
       const botRunner = createBotRunner();
       const runBot = (botRunner as any).runBot.bind(botRunner);
@@ -205,6 +212,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
       profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} }];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} });
       profileServiceMock.closePosition = async () => {
         throw new Error('Position not found');
       };
@@ -231,6 +239,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
       profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} });
       profileServiceMock.closePosition = async () => ({ id: 'close-1', price: 51000, amount: -0.02 });
 
       const botRunner = createBotRunner();
@@ -359,6 +368,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'close';
       profileServiceMock.fetchOpenPositions = async () => [];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => undefined;
       profileServiceMock.closePosition = async () => {
         closeCalls += 1;
         return { id: 'close-1', price: 51000, amount: -0.02 };
@@ -381,6 +391,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'long';
       profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} }];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'short', contracts: 0.02, raw: {} });
       profileServiceMock.closePosition = async () => {
         callOrder.push('close');
         return { id: 'close-1', price: 49000, amount: 0.02 };
@@ -407,6 +418,7 @@ describe('#BotRunner notification order pnl autopause', () => {
       profileServiceMock.getProfiles = () => [profile];
       strategyExecutorMock.executeStrategy = async () => 'short';
       profileServiceMock.fetchOpenPositions = async () => [{ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} }];
+      positionHistorySyncServiceMock.reconcileLiveBot = async () => ({ symbol: bot.pair, side: 'long', contracts: 0.02, raw: {} });
       profileServiceMock.closePosition = async () => {
         callOrder.push('close');
         return { id: 'close-1', price: 51000, amount: -0.02 };

@@ -3,7 +3,8 @@ import { Logger } from '../modules/services';
 import { SignalRepository, PositionHistoryRepository } from '../repository';
 import { ProfileService } from '../profile/profile_service';
 import { StrategyExecutor } from '../modules/strategy/v2/typed_backtest';
-import type { Bot, Profile, PositionInfo } from '../profile/types';
+import type { Bot, Profile } from '../profile/types';
+import { PositionHistorySyncService } from './position_history_sync_service';
 
 /** Convert a period string (e.g. "15m", "4h", "1d") to whole minutes. */
 function periodToMinutes(period: string): number {
@@ -29,8 +30,6 @@ function isFuturesPair(pair: string): boolean {
   return pair.includes(':');
 }
 
-type LivePositionSide = 'flat' | 'long' | 'short';
-
 export class BotRunner {
   private started = false;
 
@@ -40,6 +39,7 @@ export class BotRunner {
     private readonly notifier: Notify,
     private readonly signalRepository: SignalRepository,
     private readonly positionHistoryRepository: PositionHistoryRepository,
+    private readonly positionHistorySyncService: PositionHistorySyncService,
     private readonly logger: Logger
   ) {}
 
@@ -304,7 +304,8 @@ export class BotRunner {
     signal: string,
     mode: 'live'
   ): Promise<void> {
-    const liveSide = await this.getLivePositionSide(profile.id, bot.pair);
+    const livePosition = await this.positionHistorySyncService.reconcileLiveBot(profile, bot);
+    const liveSide = livePosition?.side ?? 'flat';
 
     switch (signal) {
       case 'close':
@@ -329,12 +330,6 @@ export class BotRunner {
         await this.openLivePosition(bot, profile, mode, signal);
         return;
     }
-  }
-
-  private async getLivePositionSide(profileId: string, pair: string): Promise<LivePositionSide> {
-    const positions = await this.profileService.fetchOpenPositions(profileId);
-    const position = positions.find((entry: PositionInfo) => entry.symbol === pair && Math.abs(entry.contracts) > 0);
-    return position?.side ?? 'flat';
   }
 
   private async closeLiveFuturesPosition(
