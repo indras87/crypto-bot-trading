@@ -81,6 +81,8 @@ import { SmcRsiDivergence } from '../strategy/strategies/smc_rsi_divergence/smc_
 import { SmcSRZones } from '../strategy/strategies/smc_sr_zones';
 import { TaSniper } from '../strategy/strategies/ta_sniper';
 import { BountySurvivalV1 } from '../strategy/strategies/bounty_survival_v1';
+import { MacdMa200Atr } from '../strategy/strategies/macd_ma200_atr';
+import { MacdMa200FixedRisk } from '../strategy/strategies/macd_ma200_fixed_risk';
 import { StrategyRegistry } from './strategy/v2/strategy_registry';
 import { AiService, NoopAiService } from '../ai/ai_service';
 import { GeminiProvider } from '../ai/gemini_provider';
@@ -597,7 +599,8 @@ const services: Services = {
       this.getCandleImporter(),
       this.getDashboardConfigService(),
       this.getLogger(),
-      this.getProfileService()
+      this.getProfileService(),
+      this.getCcxtCandlePrefillService()
     ));
   },
 
@@ -728,7 +731,9 @@ const services: Services = {
       SmcRsiDivergence,
       SmcSRZones,
       TaSniper,
-      BountySurvivalV1
+      BountySurvivalV1,
+      MacdMa200Atr,
+      MacdMa200FixedRisk
     ]));
   },
 

@@ -1,4 +1,5 @@
 import { ConfigService, DashboardConfig, DashboardPair } from './config_service';
+import { normalizeDashboardConfig } from './dashboard_pair_normalizer';
 
 export { DashboardPair, DashboardConfig };
 
@@ -6,11 +7,11 @@ export class DashboardConfigService {
   constructor(private configService: ConfigService) {}
 
   getConfig(): DashboardConfig {
-    return this.configService.getDashboardConfig();
+    return normalizeDashboardConfig(this.configService.getDashboardConfig());
   }
 
   saveConfig(config: DashboardConfig): void {
-    this.configService.saveDashboardConfig(config);
+    this.configService.saveDashboardConfig(normalizeDashboardConfig(config));
   }
 
   getPairs(): DashboardPair[] {

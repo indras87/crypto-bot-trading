@@ -4,6 +4,7 @@ import { Logger } from '../services';
 import { ExchangeInstanceService } from './exchange_instance_service';
 import { CandlestickRepository } from '../../repository';
 import { convertPeriodToMinute } from '../../utils/resample';
+import { normalizeDashboardPair } from './dashboard_pair_normalizer';
 
 // [exchange, symbol, period]
 export type PrefillJob = [string, string, string];
@@ -95,6 +96,10 @@ export class CcxtCandlePrefillService {
     since: number,
     until: number
   ): Promise<number> {
+    const normalizedPair = normalizeDashboardPair({ exchange, symbol });
+    exchange = normalizedPair.exchange;
+    symbol = normalizedPair.symbol;
+
     if (!this.candlestickRepository) {
       this.logger.warn('[CcxtCandlePrefill] candlestickRepository not available — skipping historical fetch');
       return 0;
@@ -158,6 +163,10 @@ export class CcxtCandlePrefillService {
     since: number,
     until: number
   ): Promise<ExchangeCandlestick[]> {
+    const normalizedPair = normalizeDashboardPair({ exchange, symbol });
+    exchange = normalizedPair.exchange;
+    symbol = normalizedPair.symbol;
+
     const ccxtExchange = await this.exchangeInstanceService.getPublicExchange(exchange);
     const allCandles: ExchangeCandlestick[] = [];
 
@@ -245,6 +254,10 @@ export class CcxtCandlePrefillService {
   }
 
   private async fetchRaw(exchange: string, symbol: string, period: string): Promise<ExchangeCandlestick[]> {
+    const normalizedPair = normalizeDashboardPair({ exchange, symbol });
+    exchange = normalizedPair.exchange;
+    symbol = normalizedPair.symbol;
+
     const ccxtExchange = await this.exchangeInstanceService.getPublicExchange(exchange);
 
     const ohlcv = await ccxtExchange.fetchOHLCV(symbol, period, undefined, CANDLES_LIMIT) as number[][];

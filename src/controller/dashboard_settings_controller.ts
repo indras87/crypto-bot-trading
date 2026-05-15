@@ -7,6 +7,8 @@ import express from 'express';
 
 const EXCHANGES = [
   { id: 'binance', name: 'Binance' },
+  { id: 'binanceusdm', name: 'Binance USD-M Futures' },
+  { id: 'binancecoinm', name: 'Binance COIN-M Futures' },
   { id: 'bybit', name: 'Bybit' },
   { id: 'bitfinex', name: 'Bitfinex' },
   { id: 'bitmex', name: 'BitMEX' },

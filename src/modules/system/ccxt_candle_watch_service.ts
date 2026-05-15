@@ -4,6 +4,9 @@ import { DashboardConfigService } from './dashboard_config_service';
 import { ExchangeCandlestick } from '../../dict/exchange_candlestick';
 import { Logger } from '../services';
 import { ProfileService } from '../../profile/profile_service';
+import { normalizeDashboardPair } from './dashboard_pair_normalizer';
+import type { CcxtCandlePrefillService } from './ccxt_candle_prefill_service';
+import { convertPeriodToMinute } from '../../utils/resample';
 
 type SymbolType = 'spot' | 'swap' | 'futures';
 
@@ -20,6 +23,8 @@ export class CcxtCandleWatchService {
   // Shared candle buffer: key = "exchange:symbol:period:time"
   private buffer = new Map<string, ExchangeCandlestick>();
   private flushInterval: ReturnType<typeof setInterval> | null = null;
+  private fallbackPollers = new Map<string, ReturnType<typeof setTimeout>>();
+  private subscriptionHealth = new Map<string, 'healthy' | 'degraded'>();
   // Increment to invalidate all currently-running watcher loops
   private generation = 0;
 
@@ -27,7 +32,8 @@ export class CcxtCandleWatchService {
     private candleImporter: CandleImporter,
     private dashboardConfigService: DashboardConfigService,
     private logger: Logger,
-    private profileService: ProfileService
+    private profileService: ProfileService,
+    private ccxtCandlePrefillService?: CcxtCandlePrefillService
   ) {}
 
   start(): void {
@@ -45,8 +51,9 @@ export class CcxtCandleWatchService {
     // Add pairs from dashboard config
     const config = this.dashboardConfigService.getConfig();
     for (const pair of config.pairs) {
-      const key = `${pair.exchange}:${pair.symbol}`;
-      pairSet.set(key, { exchange: pair.exchange, symbol: pair.symbol });
+      const normalizedPair = normalizeDashboardPair(pair);
+      const key = `${normalizedPair.exchange}:${normalizedPair.symbol}`;
+      pairSet.set(key, { exchange: normalizedPair.exchange, symbol: normalizedPair.symbol });
     }
 
     // Add pairs from bot configs
@@ -72,7 +79,10 @@ export class CcxtCandleWatchService {
     // Check dashboard config (cross-product of pairs × periods)
     const config = this.dashboardConfigService.getConfig();
     if (
-      config.pairs.some(p => p.exchange === exchange && p.symbol === symbol) &&
+      config.pairs.some(p => {
+        const normalizedPair = normalizeDashboardPair(p);
+        return normalizedPair.exchange === exchange && normalizedPair.symbol === symbol;
+      }) &&
       config.periods.includes(period)
     ) {
       return true;
@@ -100,16 +110,22 @@ export class CcxtCandleWatchService {
    */
   restart(): void {
     this.generation++;
+    this.resetRuntimeState();
     this.logger.debug(`[CcxtCandleWatch] Restarting subscriptions`);
     this.startSubscriptions();
   }
 
   stop(): void {
     this.generation++;
+    this.resetRuntimeState();
     if (this.flushInterval) {
       clearInterval(this.flushInterval);
       this.flushInterval = null;
     }
+  }
+
+  isSubscriptionHealthy(exchange: string, symbol: string, period: string): boolean {
+    return this.subscriptionHealth.get(this.subscriptionKey(exchange, symbol, period)) !== 'degraded';
   }
 
   private startFlushInterval(): void {
@@ -129,6 +145,14 @@ export class CcxtCandleWatchService {
     }
   }
 
+  private resetRuntimeState(): void {
+    for (const timer of this.fallbackPollers.values()) {
+      clearTimeout(timer);
+    }
+    this.fallbackPollers.clear();
+    this.subscriptionHealth.clear();
+  }
+
   private startSubscriptions(): void {
     // Collect all (exchange, symbol, period) triples from dashboard config and bots, deduped.
     // Dashboard: cross-product of configured pairs × periods.
@@ -140,8 +164,9 @@ export class CcxtCandleWatchService {
 
     const config = this.dashboardConfigService.getConfig();
     for (const pair of config.pairs) {
+      const normalizedPair = normalizeDashboardPair(pair);
       for (const period of config.periods) {
-        addSub(pair.exchange, pair.symbol, period);
+        addSub(normalizedPair.exchange, normalizedPair.symbol, period);
       }
     }
 
@@ -177,6 +202,9 @@ export class CcxtCandleWatchService {
 
     for (const [, group] of groups) {
       const symbolPeriodPairs: [string, string][] = Array.from(group.symbolPeriodPairs.values());
+      for (const [symbol, period] of symbolPeriodPairs) {
+        this.subscriptionHealth.set(this.subscriptionKey(group.exchange, symbol, period), 'healthy');
+      }
       this.runWatcher(group.exchange, symbolPeriodPairs, myGen);
     }
 
@@ -199,6 +227,7 @@ export class CcxtCandleWatchService {
         const update = await instance.watchOHLCVForSymbols(pairs);
 
         if (gen !== this.generation) break;
+        await this.markPairsHealthy(exchangeId, pairs);
 
         for (const [symbol, periodMap] of Object.entries(update as Record<string, Record<string, number[][]>>)) {
           for (const [period, candleList] of Object.entries(periodMap)) {
@@ -214,6 +243,7 @@ export class CcxtCandleWatchService {
         }
       } catch (e: any) {
         if (gen !== this.generation) break;
+        await this.markPairsDegraded(exchangeId, pairs);
         this.logger.error(`[CcxtCandleWatch] ${exchangeId} watcher error: ${e.message || String(e)}`);
         // Back off before retrying so we don't spin on persistent errors
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -227,5 +257,80 @@ export class CcxtCandleWatchService {
     }
 
     this.logger.debug(`[CcxtCandleWatch] Watcher stopped: ${exchangeId}`);
+  }
+
+  private subscriptionKey(exchange: string, symbol: string, period: string): string {
+    return `${exchange}\0${symbol}\0${period}`;
+  }
+
+  private pollingDelayMs(period: string): number {
+    const periodMs = convertPeriodToMinute(period) * 60 * 1000;
+    return Math.max(15000, Math.min(periodMs, 60000));
+  }
+
+  private async markPairsHealthy(exchangeId: string, pairs: [string, string][]): Promise<void> {
+    for (const [symbol, period] of pairs) {
+      const key = this.subscriptionKey(exchangeId, symbol, period);
+      if (this.subscriptionHealth.get(key) === 'degraded') {
+        this.logger.info(`[CcxtCandleWatch] ${exchangeId}:${symbol}:${period} websocket recovered; stopping REST fallback`);
+      }
+      this.subscriptionHealth.set(key, 'healthy');
+      this.stopFallbackPolling(key);
+    }
+  }
+
+  private async markPairsDegraded(exchangeId: string, pairs: [string, string][]): Promise<void> {
+    for (const [symbol, period] of pairs) {
+      const key = this.subscriptionKey(exchangeId, symbol, period);
+      const wasDegraded = this.subscriptionHealth.get(key) === 'degraded';
+      this.subscriptionHealth.set(key, 'degraded');
+      if (!wasDegraded) {
+        this.logger.warn(`[CcxtCandleWatch] ${exchangeId}:${symbol}:${period} websocket degraded; enabling REST fallback`);
+      }
+      await this.ensureFallbackPolling(exchangeId, symbol, period);
+    }
+  }
+
+  private stopFallbackPolling(key: string): void {
+    const timer = this.fallbackPollers.get(key);
+    if (timer) {
+      clearTimeout(timer);
+      this.fallbackPollers.delete(key);
+    }
+  }
+
+  private async ensureFallbackPolling(exchange: string, symbol: string, period: string): Promise<void> {
+    const key = this.subscriptionKey(exchange, symbol, period);
+    if (!this.ccxtCandlePrefillService || this.fallbackPollers.has(key)) {
+      return;
+    }
+
+    const run = async (): Promise<void> => {
+      if (this.subscriptionHealth.get(key) !== 'degraded') {
+        this.stopFallbackPolling(key);
+        return;
+      }
+
+      try {
+        const candles = await this.ccxtCandlePrefillService.fetchDirect(exchange, symbol, period);
+        if (candles.length > 0) {
+          await this.candleImporter.insertCandles(candles);
+        }
+      } catch (e: any) {
+        this.logger.warn(`[CcxtCandleWatch] REST fallback failed for ${exchange}:${symbol}:${period}: ${e.message || String(e)}`);
+      }
+
+      if (this.subscriptionHealth.get(key) === 'degraded') {
+        const timer = setTimeout(() => {
+          this.fallbackPollers.delete(key);
+          void this.ensureFallbackPolling(exchange, symbol, period);
+        }, this.pollingDelayMs(period));
+        this.fallbackPollers.set(key, timer);
+      } else {
+        this.stopFallbackPolling(key);
+      }
+    };
+
+    await run();
   }
 }

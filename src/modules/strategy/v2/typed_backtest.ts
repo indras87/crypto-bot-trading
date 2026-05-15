@@ -242,10 +242,13 @@ export class StrategyExecutor {
     const olderThenCurrentPeriod = unixtime - (unixtime % periodAsMinute) - periodAsMinute * 0.1;
 
     let candlesAsc: Candlestick[];
+    const watched = this.ccxtCandleWatchService.isWatched(exchange, symbol, period);
+    const websocketHealthy = !watched || this.ccxtCandleWatchService.isSubscriptionHealthy(exchange, symbol, period);
 
-    if (!this.ccxtCandleWatchService.isWatched(exchange, symbol, period)) {
+    if (!watched || !websocketHealthy) {
       const pairKey = `${exchange}:${symbol}:${period}`;
-      this.logger.info(`[StrategyExecutor] ${pairKey} not in websocket — fetching 500 history candles via REST`);
+      const reason = watched ? 'websocket unhealthy' : 'not in websocket';
+      this.logger.info(`[StrategyExecutor] ${pairKey} ${reason} — fetching 500 history candles via REST`);
       try {
         const restCandles = await this.ccxtCandlePrefillService.fetchDirect(exchange, symbol, period);
         candlesAsc = restCandles
