@@ -128,6 +128,10 @@ export class CcxtCandleWatchService {
     return this.subscriptionHealth.get(this.subscriptionKey(exchange, symbol, period)) !== 'degraded';
   }
 
+  async recoverSubscription(exchange: string, symbol: string, period: string): Promise<void> {
+    await this.markPairsDegraded(exchange, [[symbol, period]]);
+  }
+
   private startFlushInterval(): void {
     if (this.flushInterval) clearInterval(this.flushInterval);
     this.flushInterval = setInterval(() => this.flush(), 5000);

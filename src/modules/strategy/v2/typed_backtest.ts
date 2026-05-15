@@ -246,33 +246,28 @@ export class StrategyExecutor {
     const websocketHealthy = !watched || this.ccxtCandleWatchService.isSubscriptionHealthy(exchange, symbol, period);
 
     if (!watched || !websocketHealthy) {
-      const pairKey = `${exchange}:${symbol}:${period}`;
       const reason = watched ? 'websocket unhealthy' : 'not in websocket';
-      this.logger.info(`[StrategyExecutor] ${pairKey} ${reason} — fetching 500 history candles via REST`);
-      try {
-        const restCandles = await this.ccxtCandlePrefillService.fetchDirect(exchange, symbol, period);
-        candlesAsc = restCandles
-          .filter(c => c.time <= olderThenCurrentPeriod)
-          .sort((a, b) => a.time - b.time)
-          .map(c => new Candlestick(c.time, c.open, c.high, c.low, c.close, c.volume));
-      } catch (e: any) {
-        this.logger.error(`[StrategyExecutor] REST fetch failed for ${exchange}:${symbol}:${period}: ${e.message || String(e)}`);
-        return undefined;
-      }
+      candlesAsc = await this.fetchCandlesViaRest(exchange, symbol, period, olderThenCurrentPeriod, reason);
+      if (!candlesAsc) return undefined;
     } else {
       const lookbacks = await this.exchangeCandleCombine.fetchCombinedCandles(exchange, symbol, period, [], olderThenCurrentPeriod);
 
       if (!lookbacks[exchange] || lookbacks[exchange].length === 0) {
-        this.logger.info(`Strategy skipped: no candles: ${strategyName} ${exchange}:${symbol}`);
-        return undefined;
+        this.logger.info(`[StrategyExecutor] ${strategyName} ${exchange}:${symbol}:${period} has no DB candles — forcing REST refresh`);
+        await this.ccxtCandleWatchService.recoverSubscription(exchange, symbol, period);
+        candlesAsc = await this.fetchCandlesViaRest(exchange, symbol, period, olderThenCurrentPeriod, 'database empty');
+        if (!candlesAsc) return undefined;
+      } else if (!this.technicalAnalysisValidator.isValidCandleStickLookback(lookbacks[exchange].slice(), period)) {
+        const lastCandleTime = lookbacks[exchange][0]?.time;
+        this.logger.info(
+          `[StrategyExecutor] ${strategyName} ${exchange}:${symbol}:${period} candles outdated (last=${lastCandleTime}) — forcing REST refresh`
+        );
+        await this.ccxtCandleWatchService.recoverSubscription(exchange, symbol, period);
+        candlesAsc = await this.fetchCandlesViaRest(exchange, symbol, period, olderThenCurrentPeriod, 'database stale');
+        if (!candlesAsc) return undefined;
+      } else {
+        candlesAsc = lookbacks[exchange].slice().reverse();
       }
-
-      if (!this.technicalAnalysisValidator.isValidCandleStickLookback(lookbacks[exchange].slice(), period)) {
-        this.logger.info(`Strategy skipped: outdated candles: ${strategyName} ${exchange}:${symbol}`);
-        return undefined;
-      }
-
-      candlesAsc = lookbacks[exchange].slice().reverse();
     }
 
     if (candlesAsc.length === 0) {
@@ -341,6 +336,27 @@ export class StrategyExecutor {
     }
 
     return signal;
+  }
+
+  private async fetchCandlesViaRest(
+    exchange: string,
+    symbol: string,
+    period: string,
+    olderThenCurrentPeriod: number,
+    reason: string
+  ): Promise<Candlestick[] | undefined> {
+    const pairKey = `${exchange}:${symbol}:${period}`;
+    this.logger.info(`[StrategyExecutor] ${pairKey} ${reason} — fetching 500 history candles via REST`);
+    try {
+      const restCandles = await this.ccxtCandlePrefillService.refreshPairNow(exchange, symbol, period);
+      return restCandles
+        .filter(c => c.time <= olderThenCurrentPeriod)
+        .sort((a, b) => a.time - b.time)
+        .map(c => new Candlestick(c.time, c.open, c.high, c.low, c.close, c.volume));
+    } catch (e: any) {
+      this.logger.error(`[StrategyExecutor] REST fetch failed for ${exchange}:${symbol}:${period}: ${e.message || String(e)}`);
+      return undefined;
+    }
   }
 }
 

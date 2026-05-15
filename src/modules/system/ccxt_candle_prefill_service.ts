@@ -77,6 +77,14 @@ export class CcxtCandlePrefillService {
     return this.fetchRaw(exchange, symbol, period);
   }
 
+  async refreshPairNow(exchange: string, symbol: string, period: string): Promise<ExchangeCandlestick[]> {
+    const candles = await this.fetchRaw(exchange, symbol, period);
+    if (candles.length > 0) {
+      await this.candleImporter.insertCandles(candles);
+    }
+    return candles;
+  }
+
   /**
    * Ensure that candles for the given time range are available in the database.
    * If the DB does not have enough candles, fetches historical data from the exchange

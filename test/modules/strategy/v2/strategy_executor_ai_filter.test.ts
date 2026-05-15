@@ -17,7 +17,7 @@ describe('#strategy executor live ai filter', () => {
       { info: () => {}, debug: () => {}, error: () => {} } as any,
       { isWatched: () => false } as any,
       {
-        fetchDirect: async () =>
+        refreshPairNow: async () =>
           [
             { time: 1700000000, open: 100, high: 101, low: 99, close: 100, volume: 10 },
             { time: 1700000060, open: 100, high: 102, low: 99, close: 101, volume: 12 }
@@ -97,7 +97,7 @@ describe('#strategy executor live ai filter', () => {
       { info: () => {}, debug: () => {}, error: () => {} } as any,
       { isWatched: () => true, isSubscriptionHealthy: () => false } as any,
       {
-        fetchDirect: async () => {
+        refreshPairNow: async () => {
           fetchDirectCalls += 1;
           return [
             { time: 1700000000, open: 100, high: 101, low: 99, close: 100, volume: 10 },
@@ -122,5 +122,61 @@ describe('#strategy executor live ai filter', () => {
     assert.strictEqual(result, 'long');
     assert.strictEqual(fetchDirectCalls, 1);
     assert.strictEqual(fetchCombinedCalls, 0);
+  });
+
+  it('falls back to REST when watched candles are stale in the database', async () => {
+    let fetchDirectCalls = 0;
+    let recoverCalls = 0;
+
+    const strategyRegistry = {
+      getStrategyClass: (_strategyName: string) =>
+        class {
+          constructor(_options: Record<string, any>) {}
+        }
+    } as any;
+
+    const executor = new StrategyExecutor(
+      { isValidCandleStickLookback: () => false } as any,
+      {
+        fetchCombinedCandles: async () => ({
+          binanceusdm: [
+            { time: 1700000000, open: 100, high: 101, low: 99, close: 100, volume: 10 }
+          ]
+        })
+      } as any,
+      { info: () => {}, debug: () => {}, error: () => {} } as any,
+      {
+        isWatched: () => true,
+        isSubscriptionHealthy: () => true,
+        recoverSubscription: async () => {
+          recoverCalls += 1;
+        }
+      } as any,
+      {
+        refreshPairNow: async () => {
+          fetchDirectCalls += 1;
+          return [
+            { time: 1700000000, open: 100, high: 101, low: 99, close: 100, volume: 10 },
+            { time: 1700000060, open: 100, high: 102, low: 99, close: 101, volume: 12 }
+          ] as Candlestick[];
+        }
+      } as any,
+      strategyRegistry
+    );
+
+    (executor as any).execute = async () => [
+      {
+        time: 1700000060,
+        price: 101,
+        signal: 'long',
+        debug: {}
+      }
+    ];
+
+    const result = await executor.executeStrategy('noop', 'binanceusdm', 'LTC/USDT:USDT', '30m', {}, { useAiValidator: false });
+
+    assert.strictEqual(result, 'long');
+    assert.strictEqual(recoverCalls, 1);
+    assert.strictEqual(fetchDirectCalls, 1);
   });
 });
